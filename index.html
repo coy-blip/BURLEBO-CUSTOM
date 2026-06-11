@@ -15,11 +15,15 @@
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg);color:var(--ink);line-height:1.5}
   a{color:var(--accent)}
-  header{background:var(--accent);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px}
+  header{background:var(--accent);color:#fff;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   header h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.3px}
-  header .who{margin-left:auto;font-size:13px;opacity:.9}
+  header .nav{display:flex;gap:4px}
+  header .nav button{background:rgba(255,255,255,.15);border:none;color:#fff;font:inherit;font-size:13px;
+    padding:6px 12px;border-radius:7px;cursor:pointer}
+  header .nav button:hover{background:rgba(255,255,255,.3)}
+  header .who{margin-left:auto;font-size:13px;opacity:.95}
   header .who input{font:inherit;border:none;border-radius:6px;padding:4px 8px;width:130px}
-  main{max-width:880px;margin:0 auto;padding:22px 16px 60px}
+  main{max-width:920px;margin:0 auto;padding:22px 16px 60px}
   .btn{font:inherit;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;
     padding:8px 14px;border-radius:8px;font-size:14px}
   .btn.secondary{background:#fff;color:var(--accent)}
@@ -41,10 +45,6 @@
     border-radius:8px;background:#fff;color:var(--ink)}
   textarea{min-height:64px;resize:vertical}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
-  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
-  .sku-line{display:grid;grid-template-columns:1.2fr 2fr .8fr .9fr auto;gap:8px;align-items:end;margin-bottom:8px}
   .feed-item{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px}
   .feed-item .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .feed-item .name{font-weight:600;word-break:break-word}
@@ -54,17 +54,34 @@
     cursor:pointer;background:#fbfbf8}
   .drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
   .tabs{display:flex;gap:6px;margin:6px 0 12px}
-  .tabs button{flex:0 0 auto}
   .hidden{display:none}
   .gate{max-width:320px;margin:80px auto;text-align:center}
   .link-x{color:var(--danger);cursor:pointer;font-size:13px;background:none;border:none;padding:4px}
   .back{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;padding:0;margin-bottom:8px;font-size:14px}
-  @media(max-width:600px){.grid2{grid-template-columns:1fr}.sku-line{grid-template-columns:1fr 1fr}}
+  /* product entry */
+  .prod{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px;background:#fbfbf8}
+  .sizegroup{margin-top:10px}
+  .sg-label{font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+  .sg-row{display:flex;flex-wrap:wrap;gap:6px}
+  .sz{display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted);margin:0;gap:2px}
+  .sz input{width:54px;padding:5px 4px;text-align:center}
+  /* calendar */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:4px;text-transform:uppercase;letter-spacing:.4px}
+  .cal-cell{min-height:88px;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff}
+  .cal-cell.empty{background:transparent;border:none}
+  .cal-cell.today{border-color:var(--accent);background:var(--accent-soft)}
+  .cal-daynum{color:var(--muted);font-size:11px}
+  .chip{background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:2px 6px;margin-top:3px;
+    cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:11px}
+  .chip:hover{background:#dfe4d4}
+  @media(max-width:600px){.grid2{grid-template-columns:1fr}.cal-cell{min-height:64px}}
 </style>
 </head>
 <body>
 
-<!-- ============ CONFIG: fill these two in ============ -->
+<!-- ============ CONFIG ============ -->
 <script>
   const SUPABASE_URL  = "https://tpvgyspzrnkfyiodxjes.supabase.co";
   const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwdmd5c3B6cm5rZnlpb2R4amVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNzc2NzEsImV4cCI6MjA5Njc1MzY3MX0.EHA1yT5xgKPAr4byUTqnVA5qya7ts32-1vxwFQ2Mll4";
@@ -72,6 +89,11 @@
   const BUCKET        = "project-assets";
   const STATUSES   = ["New","In design","Proofing","Approved","In production","Complete"];
   const CATEGORIES = ["Logo","Proof","Artwork","Reference","Other"];
+  const SIZES = {
+    Mens:  ["X-Small","Small","Medium","Large","X-Large","XX-Large","XXX-Large"],
+    Youth: ["2T","3T","4T","X-Small","Small","Medium","Large","X-Large"],
+    Baby:  ["Newborn","0-3","3-6","6-12","12-18 months"]
+  };
 </script>
 
 <div id="gate" class="gate">
@@ -85,6 +107,10 @@
 <div id="app" class="hidden">
   <header>
     <h1>Burlebo Custom Orders</h1>
+    <nav class="nav">
+      <button onclick="go()">Projects</button>
+      <button onclick="goCalendar()">Calendar</button>
+    </nav>
     <span class="who">You are
       <input id="whoName" placeholder="your name" onchange="saveName()">
     </span>
@@ -96,15 +122,12 @@
 const { createClient } = supabase;
 let db = null;
 let me = localStorage.getItem("cc_name") || "";
+let calRef = new Date(); calRef.setDate(1);
 
 function tryGate(){
-  const v = document.getElementById("pw").value;
-  if(v === APP_PASSWORD){
-    sessionStorage.setItem("cc_ok","1");
-    startApp();
-  } else {
-    document.getElementById("gateErr").textContent = "Wrong password.";
-  }
+  if(document.getElementById("pw").value === APP_PASSWORD){
+    sessionStorage.setItem("cc_ok","1"); startApp();
+  } else { document.getElementById("gateErr").textContent = "Wrong password."; }
 }
 function saveName(){ me = document.getElementById("whoName").value.trim(); localStorage.setItem("cc_name", me); }
 
@@ -115,28 +138,25 @@ function startApp(){
   db = createClient(SUPABASE_URL, SUPABASE_ANON);
   route();
 }
-window.addEventListener("DOMContentLoaded", ()=>{
-  if(sessionStorage.getItem("cc_ok")==="1") startApp();
-});
+window.addEventListener("DOMContentLoaded", ()=>{ if(sessionStorage.getItem("cc_ok")==="1") startApp(); });
 
-// ---------- routing (list <-> detail via ?p=id) ----------
+// ---------- routing ----------
 function route(){
-  const id = new URLSearchParams(location.search).get("p");
-  if(id) renderDetail(id); else renderList();
+  const params = new URLSearchParams(location.search);
+  const id = params.get("p"), v = params.get("view");
+  if(id) renderDetail(id);
+  else if(v==="calendar") renderCalendar();
+  else renderList();
 }
-function go(id){
-  const u = new URL(location);
-  if(id) u.searchParams.set("p", id); else u.searchParams.delete("p");
-  history.pushState({}, "", u);
-  route();
-}
+function go(id){ const u=new URL(location); u.search=""; if(id) u.searchParams.set("p",id); history.pushState({},"",u); route(); }
+function goCalendar(){ const u=new URL(location); u.search=""; u.searchParams.set("view","calendar"); history.pushState({},"",u); route(); }
 window.addEventListener("popstate", route);
 
 const esc = s => (s??"").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtDate = d => d ? new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : "—";
 const fmtStamp = t => new Date(t).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
 
-// ---------- LIST + NEW ----------
+// ---------- LIST ----------
 async function renderList(){
   const view = document.getElementById("view");
   view.innerHTML = `<div class="row between" style="margin-bottom:14px">
@@ -146,25 +166,41 @@ async function renderList(){
   const { data, error } = await db.from("projects").select("*").order("created_at",{ascending:false});
   const list = document.getElementById("list");
   if(error){ list.innerHTML = `<div class="muted-empty">Couldn't load projects: ${esc(error.message)}</div>`; return; }
-  if(!data.length){ list.innerHTML = `<div class="muted-empty">No projects yet. Start one with “New project”.</div>`; return; }
+  if(!data.length){ list.innerHTML = `<div class="muted-empty">No projects yet. Start one with "New project".</div>`; return; }
   list.innerHTML = data.map(p => `
     <div class="card proj-card" onclick="go('${p.id}')">
-      <div class="row between">
-        <h3>${esc(p.project_name)}</h3>
-        <span class="badge">${esc(p.status||"New")}</span>
-      </div>
+      <div class="row between"><h3>${esc(p.project_name)}</h3><span class="badge">${esc(p.status||"New")}</span></div>
       <div class="meta">${esc(p.customer_name||"No customer")} · due ${fmtDate(p.due_date)} · ${p.estimated_units??"—"} units</div>
     </div>`).join("");
 }
 
-function skuLineHtml(){
-  return `<div class="sku-line">
-    <div><label>SKU</label><input class="s-sku"></div>
-    <div><label>Description</label><input class="s-desc"></div>
-    <div><label>Units</label><input class="s-units" type="number" min="0"></div>
-    <div><label>Unit price</label><input class="s-price" type="number" step="0.01" min="0"></div>
-    <button class="link-x" title="Remove" onclick="this.parentElement.remove()">remove</button>
+// ---------- NEW ----------
+function sizeGroupsHtml(){
+  return Object.entries(SIZES).map(([cat,sizes])=>`
+    <div class="sizegroup">
+      <div class="sg-label">${cat}</div>
+      <div class="sg-row">
+        ${sizes.map(sz=>`<label class="sz">${esc(sz)}
+          <input class="p-size" type="number" min="0" data-key="${esc(cat+'|'+sz)}" oninput="recalcTotal(this)"></label>`).join("")}
+      </div>
+    </div>`).join("");
+}
+function productCardHtml(){
+  return `<div class="prod">
+    <div class="grid2">
+      <div><label>Product name</label><input class="p-name"></div>
+      <div><label>SKU</label><input class="p-sku"></div>
+    </div>
+    <label>Total units <span class="meta" style="text-transform:none">— auto-sums from sizes, or type a number</span></label>
+    <input class="p-total" type="number" min="0">
+    ${sizeGroupsHtml()}
+    <div style="margin-top:8px"><button class="link-x" onclick="this.closest('.prod').remove()">remove product</button></div>
   </div>`;
+}
+function recalcTotal(el){
+  const prod = el.closest(".prod"); let sum=0;
+  prod.querySelectorAll(".p-size").forEach(s=> sum += parseInt(s.value)||0);
+  if(sum>0) prod.querySelector(".p-total").value = sum;
 }
 
 function renderNew(){
@@ -177,18 +213,18 @@ function renderNew(){
         <div><label>Project name *</label><input id="f_name"></div>
         <div><label>Status</label><select id="f_status">${STATUSES.map(s=>`<option>${s}</option>`).join("")}</select></div>
         <div><label>Customer</label><input id="f_customer"></div>
-        <div><label>Customer contact (email / phone)</label><input id="f_contact"></div>
+        <div><label>Customer email</label><input id="f_email" type="email"></div>
+        <div><label>Customer phone</label><input id="f_phone"></div>
         <div><label>Due date</label><input id="f_due" type="date"></div>
         <div><label>Estimated total units</label><input id="f_units" type="number" min="0"></div>
-        <div><label>Assigned designer</label><input id="f_designer"></div>
         <div><label>Sales rep (created by)</label><input id="f_rep"></div>
       </div>
       <label>Pricing details</label><textarea id="f_pricing" placeholder="Quoted pricing, terms, discounts…"></textarea>
       <label>Notes</label><textarea id="f_notes"></textarea>
 
-      <h3 style="margin:18px 0 4px;font-size:16px">SKUs to customize</h3>
-      <div id="skus">${skuLineHtml()}</div>
-      <button class="btn ghost small" onclick="document.getElementById('skus').insertAdjacentHTML('beforeend', skuLineHtml())">+ Add SKU</button>
+      <h3 style="margin:18px 0 6px;font-size:16px">Products to customize</h3>
+      <div id="prods">${productCardHtml()}</div>
+      <button class="btn ghost small" onclick="document.getElementById('prods').insertAdjacentHTML('beforeend', productCardHtml())">+ Add product</button>
 
       <div class="row" style="margin-top:18px">
         <button class="btn" id="saveBtn" onclick="saveProject()">Create project</button>
@@ -209,10 +245,10 @@ async function saveProject(){
     project_name: name,
     status: document.getElementById("f_status").value,
     customer_name: document.getElementById("f_customer").value.trim() || null,
-    customer_contact: document.getElementById("f_contact").value.trim() || null,
+    customer_email: document.getElementById("f_email").value.trim() || null,
+    customer_phone: document.getElementById("f_phone").value.trim() || null,
     due_date: document.getElementById("f_due").value || null,
     estimated_units: parseInt(document.getElementById("f_units").value) || null,
-    assigned_designer: document.getElementById("f_designer").value.trim() || null,
     created_by: document.getElementById("f_rep").value.trim() || me || null,
     pricing_notes: document.getElementById("f_pricing").value.trim() || null,
     notes: document.getElementById("f_notes").value.trim() || null
@@ -220,19 +256,19 @@ async function saveProject(){
   const { data, error } = await db.from("projects").insert(payload).select().single();
   if(error){ document.getElementById("saveMsg").textContent = "Error: "+error.message; document.getElementById("saveBtn").disabled=false; return; }
 
-  const skuRows = [...document.querySelectorAll("#skus .sku-line")].map(l => ({
-    project_id: data.id,
-    sku: l.querySelector(".s-sku").value.trim() || null,
-    description: l.querySelector(".s-desc").value.trim() || null,
-    estimated_units: parseInt(l.querySelector(".s-units").value) || null,
-    unit_price: parseFloat(l.querySelector(".s-price").value) || null
-  })).filter(r => r.sku || r.description);
-  if(skuRows.length) await db.from("project_skus").insert(skuRows);
+  const prods = [...document.querySelectorAll("#prods .prod")].map(p=>{
+    const sizes={};
+    p.querySelectorAll(".p-size").forEach(s=>{ const v=parseInt(s.value)||0; if(v>0) sizes[s.dataset.key]=v; });
+    const total = parseInt(p.querySelector(".p-total").value) || Object.values(sizes).reduce((a,b)=>a+b,0) || null;
+    return { project_id:data.id, product_name:p.querySelector(".p-name").value.trim()||null,
+      sku:p.querySelector(".p-sku").value.trim()||null, estimated_units:total, sizes };
+  }).filter(r=> r.product_name||r.sku||r.estimated_units||Object.keys(r.sizes).length);
+  if(prods.length) await db.from("project_skus").insert(prods);
 
   go(data.id);
 }
 
-// ---------- DETAIL + ASSET FEED ----------
+// ---------- DETAIL ----------
 async function renderDetail(id){
   const view = document.getElementById("view");
   view.innerHTML = `<button class="back" onclick="go()">← All projects</button><div id="detail" class="muted-empty">Loading…</div>`;
@@ -243,25 +279,31 @@ async function renderDetail(id){
   ]);
   if(pe || !p){ document.getElementById("detail").innerHTML = `<div class="muted-empty">Project not found.</div>`; return; }
 
-  const skuRows = (skus&&skus.length) ? skus.map(s=>`<tr>
-      <td>${esc(s.sku)}</td><td>${esc(s.description)}</td>
-      <td>${s.estimated_units??"—"}</td><td>${s.unit_price!=null?"$"+Number(s.unit_price).toFixed(2):"—"}</td>
-    </tr>`).join("") : `<tr><td colspan="4" class="meta">No SKUs listed.</td></tr>`;
+  const prodRows = (skus&&skus.length) ? skus.map(s=>{
+    const sizeStr = s.sizes && Object.keys(s.sizes).length
+      ? Object.entries(s.sizes).map(([k,v])=>`${esc(k.replace('|',' '))} ${v}`).join(",  ") : "";
+    return `<div class="feed-item">
+      <div class="top">
+        <span class="name">${esc(s.product_name||s.sku||"Product")}</span>
+        ${s.sku?`<span class="badge">${esc(s.sku)}</span>`:""}
+        ${s.estimated_units!=null?`<span class="meta">${s.estimated_units} units</span>`:""}
+      </div>${sizeStr?`<div class="sub">${sizeStr}</div>`:""}
+    </div>`;
+  }).join("") : `<div class="muted-empty">No products listed.</div>`;
 
   document.getElementById("detail").innerHTML = `
     <div class="card">
       <div class="row between">
         <h2 style="margin:0;font-size:21px">${esc(p.project_name)}</h2>
         <select id="d_status" onchange="updateStatus('${p.id}', this.value)">
-          ${STATUSES.map(s=>`<option ${s===p.status?"selected":""}>${s}</option>`).join("")}
-        </select>
+          ${STATUSES.map(s=>`<option ${s===p.status?"selected":""}>${s}</option>`).join("")}</select>
       </div>
       <div class="grid2" style="margin-top:8px">
         <div class="meta"><strong>Customer:</strong> ${esc(p.customer_name||"—")}</div>
-        <div class="meta"><strong>Contact:</strong> ${esc(p.customer_contact||"—")}</div>
+        <div class="meta"><strong>Email:</strong> ${esc(p.customer_email||"—")}</div>
+        <div class="meta"><strong>Phone:</strong> ${esc(p.customer_phone||"—")}</div>
         <div class="meta"><strong>Due:</strong> ${fmtDate(p.due_date)}</div>
         <div class="meta"><strong>Est. units:</strong> ${p.estimated_units??"—"}</div>
-        <div class="meta"><strong>Designer:</strong> ${esc(p.assigned_designer||"—")}</div>
         <div class="meta"><strong>Sales rep:</strong> ${esc(p.created_by||"—")}</div>
       </div>
       ${p.pricing_notes?`<div class="meta" style="margin-top:8px"><strong>Pricing:</strong> ${esc(p.pricing_notes)}</div>`:""}
@@ -269,20 +311,17 @@ async function renderDetail(id){
     </div>
 
     <div class="card">
-      <h3 style="margin:0 0 8px;font-size:16px">SKUs to customize</h3>
-      <table><thead><tr><th>SKU</th><th>Description</th><th>Units</th><th>Unit price</th></tr></thead>
-        <tbody>${skuRows}</tbody></table>
+      <h3 style="margin:0 0 8px;font-size:16px">Products to customize</h3>
+      ${prodRows}
     </div>
 
     <div class="card">
       <h3 style="margin:0 0 4px;font-size:16px">Files &amp; updates</h3>
       <p class="meta" style="margin:0 0 12px">Every drop is kept, newest first — so nothing gets lost as designs change.</p>
-
       <div class="tabs">
         <button class="btn secondary small" onclick="showAdd('file')">Upload files</button>
         <button class="btn ghost small" onclick="showAdd('link')">Add a link</button>
       </div>
-
       <div id="addArea"></div>
       <div id="feed">${renderFeed(assets)}</div>
     </div>`;
@@ -293,9 +332,7 @@ async function renderDetail(id){
 function renderFeed(assets){
   if(!assets || !assets.length) return `<div class="muted-empty">No files or links yet.</div>`;
   return assets.map(a=>{
-    const url = a.asset_type==="file"
-      ? db.storage.from(BUCKET).getPublicUrl(a.file_path).data.publicUrl
-      : a.external_url;
+    const url = a.asset_type==="file" ? db.storage.from(BUCKET).getPublicUrl(a.file_path).data.publicUrl : a.external_url;
     const name = a.asset_type==="file" ? (a.file_name||"file") : a.external_url;
     return `<div class="feed-item">
       <div class="top">
@@ -315,23 +352,15 @@ function renderFeed(assets){
 
 function showAdd(mode){
   const a = document.getElementById("addArea");
-  const common = `
-    <div class="grid2">
+  const common = `<div class="grid2">
       <div><label>Label</label><input id="a_label" placeholder="e.g. Logo option 2"></div>
-      <div><label>Category</label><select id="a_cat">${CATEGORIES.map(c=>`<option>${c}</option>`).join("")}</select></div>
-    </div>`;
+      <div><label>Category</label><select id="a_cat">${CATEGORIES.map(c=>`<option>${c}</option>`).join("")}</select></div></div>`;
   if(mode==="link"){
-    a.innerHTML = common + `
-      <label>Link (Dropbox, Drive, etc.)</label>
-      <input id="a_url" placeholder="https://…">
-      <div class="row" style="margin-top:10px"><button class="btn small" onclick="addLink()">Add link</button>
-        <span id="a_msg" class="meta"></span></div>`;
+    a.innerHTML = common + `<label>Link (Dropbox, Drive, etc.)</label><input id="a_url" placeholder="https://…">
+      <div class="row" style="margin-top:10px"><button class="btn small" onclick="addLink()">Add link</button><span id="a_msg" class="meta"></span></div>`;
   } else {
-    a.innerHTML = common + `
-      <label>Files</label>
-      <div class="drop" id="drop" onclick="document.getElementById('a_file').click()">
-        Drag files here, or click to choose. You can drop several at once.
-      </div>
+    a.innerHTML = common + `<label>Files</label>
+      <div class="drop" id="drop" onclick="document.getElementById('a_file').click()">Drag files here, or click to choose. You can drop several at once.</div>
       <input id="a_file" type="file" multiple class="hidden" onchange="addFiles(this.files)">
       <div class="row" style="margin-top:8px"><span id="a_msg" class="meta"></span></div>`;
     const d = document.getElementById("drop");
@@ -347,8 +376,7 @@ async function addLink(){
   const { error } = await db.from("project_assets").insert({
     project_id: window.__pid, asset_type:"link", external_url:url,
     label: document.getElementById("a_label").value.trim() || null,
-    category: document.getElementById("a_cat").value, added_by: me || null
-  });
+    category: document.getElementById("a_cat").value, added_by: me || null });
   if(error){ document.getElementById("a_msg").textContent="Error: "+error.message; return; }
   renderDetail(window.__pid);
 }
@@ -363,21 +391,61 @@ async function addFiles(files){
     const path = window.__pid + "/" + Date.now() + "-" + f.name.replace(/[^\w.\-]/g,"_");
     const { error:upErr } = await db.storage.from(BUCKET).upload(path, f);
     if(upErr){ msg.textContent = "Upload failed: "+upErr.message; return; }
-    await db.from("project_assets").insert({
-      project_id: window.__pid, asset_type:"file", file_path:path, file_name:f.name,
-      label: label || null, category: cat, added_by: me || null
-    });
+    await db.from("project_assets").insert({ project_id: window.__pid, asset_type:"file",
+      file_path:path, file_name:f.name, label: label||null, category: cat, added_by: me||null });
   }
   renderDetail(window.__pid);
 }
 
 async function toggleFinal(id, val){ await db.from("project_assets").update({is_finalized:val}).eq("id",id); renderDetail(window.__pid); }
-async function deleteAsset(id){
-  if(!confirm("Delete this entry?")) return;
-  await db.from("project_assets").delete().eq("id",id);
-  renderDetail(window.__pid);
-}
+async function deleteAsset(id){ if(!confirm("Delete this entry?")) return; await db.from("project_assets").delete().eq("id",id); renderDetail(window.__pid); }
 async function updateStatus(id, status){ await db.from("projects").update({status}).eq("id",id); }
+
+// ---------- CALENDAR ----------
+async function renderCalendar(){
+  const view = document.getElementById("view");
+  const monthLabel = calRef.toLocaleDateString(undefined,{month:"long",year:"numeric"});
+  view.innerHTML = `
+    <div class="cal-head">
+      <h2 style="margin:0;font-size:20px">Calendar</h2>
+      <div class="row">
+        <button class="btn ghost small" onclick="shiftMonth(-1)">←</button>
+        <strong style="min-width:150px;text-align:center">${monthLabel}</strong>
+        <button class="btn ghost small" onclick="shiftMonth(1)">→</button>
+        <button class="btn ghost small" onclick="calRef=new Date();calRef.setDate(1);renderCalendar()">Today</button>
+      </div>
+    </div>
+    <div id="cal" class="muted-empty">Loading…</div>`;
+  const { data, error } = await db.from("projects").select("id,project_name,due_date,status").order("due_date");
+  const el = document.getElementById("cal");
+  if(error){ el.innerHTML = `<div class="muted-empty">Couldn't load: ${esc(error.message)}</div>`; return; }
+
+  const byDate = {};
+  (data||[]).forEach(p=>{ if(p.due_date){ (byDate[p.due_date] ||= []).push(p); } });
+
+  const year=calRef.getFullYear(), month=calRef.getMonth();
+  const firstDow = new Date(year,month,1).getDay();
+  const daysIn = new Date(year,month+1,0).getDate();
+  const todayStr = new Date().toLocaleDateString("en-CA");
+  const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="cal-dow">${d}</div>`).join("");
+
+  let cells = "";
+  for(let i=0;i<firstDow;i++) cells += `<div class="cal-cell empty"></div>`;
+  for(let d=1; d<=daysIn; d++){
+    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const chips = (byDate[ds]||[]).map(p=>`<div class="chip" title="${esc(p.project_name)}" onclick="go('${p.id}')">${esc(p.project_name)}</div>`).join("");
+    cells += `<div class="cal-cell ${ds===todayStr?'today':''}"><div class="cal-daynum">${d}</div>${chips}</div>`;
+  }
+
+  const noDate = (data||[]).filter(p=>!p.due_date);
+  const noDateHtml = noDate.length
+    ? `<div class="card" style="margin-top:14px"><div class="meta" style="margin-bottom:6px">No due date set</div>
+        <div class="row">${noDate.map(p=>`<span class="chip" onclick="go('${p.id}')">${esc(p.project_name)}</span>`).join("")}</div></div>`
+    : "";
+
+  el.outerHTML = `<div class="cal-grid">${dow}${cells}</div>${noDateHtml}`;
+}
+function shiftMonth(n){ calRef.setMonth(calRef.getMonth()+n); renderCalendar(); }
 </script>
 </body>
 </html>
