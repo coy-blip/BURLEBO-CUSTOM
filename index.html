@@ -23,6 +23,11 @@
   header .nav button:hover{background:rgba(255,255,255,.3)}
   header .who{margin-left:auto;font-size:13px;opacity:.95}
   header .who input{font:inherit;border:none;border-radius:6px;padding:4px 8px;width:130px}
+  .people{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .people .pchip{background:rgba(255,255,255,.16);border:none;color:#fff;font:inherit;font-size:12px;
+    padding:5px 10px;border-radius:20px;cursor:pointer}
+  .people .pchip:hover{background:rgba(255,255,255,.3)}
+  .people .pcount{opacity:.85;margin-left:5px;font-weight:600}
   main{max-width:920px;margin:0 auto;padding:22px 16px 60px}
   .btn{font:inherit;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;
     padding:8px 14px;border-radius:8px;font-size:14px}
@@ -146,6 +151,7 @@
       <button onclick="go()">Projects</button>
       <button onclick="goCalendar()">Calendar</button>
     </nav>
+    <div id="people" class="people"></div>
     <span class="who">You are <input id="whoName" placeholder="your name" onchange="saveName()"></span>
   </header>
   <main id="view"></main>
@@ -173,12 +179,17 @@ function startApp(){
 window.addEventListener("DOMContentLoaded", ()=>{ if(sessionStorage.getItem("cc_ok")==="1") startApp(); });
 
 function route(){
+  if(db) loadPeople();
   const params = new URLSearchParams(location.search);
-  const id = params.get("p"), v = params.get("view");
-  if(id) renderDetail(id); else if(v==="calendar") renderCalendar(); else renderList();
+  const id = params.get("p"), v = params.get("view"), person = params.get("person");
+  if(id) renderDetail(id);
+  else if(person) renderPerson(person);
+  else if(v==="calendar") renderCalendar();
+  else renderList();
 }
 function go(id){ const u=new URL(location); u.search=""; if(id) u.searchParams.set("p",id); history.pushState({},"",u); route(); }
 function goCalendar(){ const u=new URL(location); u.search=""; u.searchParams.set("view","calendar"); history.pushState({},"",u); route(); }
+function goPerson(enc){ const name=decodeURIComponent(enc); const u=new URL(location); u.search=""; u.searchParams.set("person",name); history.pushState({},"",u); route(); }
 window.addEventListener("popstate", route);
 
 const esc = s => (s??"").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -217,6 +228,44 @@ async function renderList(){
       <div class="row between"><h3>${esc(p.project_name)}</h3><span class="badge">${esc(p.status||"New")}</span></div>
       <div class="meta">${esc(p.customer_name||"No customer")} · ${u?u+" units":"— units"}${hint?" · "+hint:""}</div>
     </div>`;
+  }).join("");
+}
+
+// ---------- people in nav ----------
+async function loadPeople(){
+  const el = document.getElementById("people");
+  if(!el || !db) return;
+  const { data } = await db.from("project_milestones").select("project_id,assigned_to").not("assigned_to","is",null);
+  const map={};
+  (data||[]).forEach(m=>{ const n=(m.assigned_to||"").trim(); if(!n) return; (map[n] ||= new Set()).add(m.project_id); });
+  const names = Object.keys(map).sort((a,b)=> a.localeCompare(b));
+  el.innerHTML = names.map(n=>`<button class="pchip" onclick="goPerson('${encodeURIComponent(n)}')">${esc(n)}<span class="pcount">${map[n].size}</span></button>`).join("");
+}
+
+async function renderPerson(name){
+  const view=document.getElementById("view");
+  view.innerHTML = `<button class="back" onclick="go()">← All projects</button>
+    <h2 style="margin:0 0 12px;font-size:20px">${esc(name)}'s assignments</h2>
+    <div id="plist" class="muted-empty">Loading…</div>`;
+  const { data, error } = await db.from("project_milestones")
+    .select("project_id,due_date,milestone_key,assigned_to,projects(project_name,status)")
+    .eq("assigned_to", name);
+  const el=document.getElementById("plist");
+  if(error){ el.innerHTML=`<div class="muted-empty">Couldn't load: ${esc(error.message)}</div>`; return; }
+  if(!data || !data.length){ el.innerHTML=`<div class="muted-empty">Nothing assigned to ${esc(name)} right now.</div>`; return; }
+  const byProj={};
+  data.forEach(m=>{ (byProj[m.project_id] ||= {name:(m.projects&&m.projects.project_name)||"Project", status:(m.projects&&m.projects.status)||"", items:[]}).items.push(m); });
+  const entries = Object.entries(byProj).map(([pid,info])=>{
+    const dates = info.items.map(i=>i.due_date).filter(Boolean).sort();
+    return {pid, info, soonest: dates[0]||"9999-99-99"};
+  }).sort((a,b)=> a.soonest<b.soonest?-1:1);
+  el.innerHTML = entries.map(({pid,info})=>{
+    const ms = info.items.slice().sort((a,b)=> (a.due_date||"9999")<(b.due_date||"9999")?-1:1)
+      .map(i=>{ const lbl=(MS_BY_KEY[i.milestone_key]||{}).label||i.milestone_key;
+        return `<div class="meta">• ${esc(lbl)} — ${i.due_date?fmtDate(i.due_date):"no date set"}</div>`; }).join("");
+    return `<div class="card proj-card" onclick="go('${pid}')">
+      <div class="row between"><h3>${esc(info.name)}</h3><span class="badge">${esc(info.status||"New")}</span></div>
+      <div style="margin-top:6px">${ms}</div></div>`;
   }).join("");
 }
 
@@ -447,6 +496,7 @@ async function saveMilestones(pid){
   if(rows.length){ const ins = await db.from("project_milestones").insert(rows);
     if(ins.error){ document.getElementById("msMsg").textContent = "Error: "+ins.error.message; return; } }
   document.getElementById("msMsg").textContent = "Saved.";
+  loadPeople();
 }
 
 // ---------- delete (double confirm) ----------
