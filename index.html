@@ -22,7 +22,8 @@
     padding:6px 12px;border-radius:7px;cursor:pointer}
   header .nav button:hover{background:rgba(255,255,255,.3)}
   header .who{margin-left:auto;font-size:13px;opacity:.95}
-  header .who input{font:inherit;border:none;border-radius:6px;padding:4px 8px;width:130px}
+  header .who select{font:inherit;border:none;border-radius:7px;padding:5px 10px;background:rgba(255,255,255,.18);color:#fff;cursor:pointer}
+  header .who select option{color:#23271f}
   .people{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .people .pchip{background:rgba(255,255,255,.16);border:none;color:#fff;font:inherit;font-size:12px;
     padding:5px 10px;border-radius:20px;cursor:pointer}
@@ -152,9 +153,9 @@
     <nav class="nav">
       <button onclick="go()">Projects</button>
       <button onclick="goCalendar()">Calendar</button>
+      <button onclick="goCompleted()">Completed</button>
     </nav>
     <div id="people" class="people"></div>
-    <span class="who">You are <input id="whoName" placeholder="your name" onchange="saveName()"></span>
   </header>
   <main id="view"></main>
 </div>
@@ -170,11 +171,14 @@ function tryGate(){
   if(document.getElementById("pw").value === APP_PASSWORD){ sessionStorage.setItem("cc_ok","1"); startApp(); }
   else { document.getElementById("gateErr").textContent = "Wrong password."; }
 }
-function saveName(){ me = document.getElementById("whoName").value.trim(); localStorage.setItem("cc_name", me); }
+function rememberBy(){
+  const el=document.getElementById("a_by"); const by=el?el.value.trim():"";
+  if(by){ me=by; localStorage.setItem("cc_name", by); }
+  return by;
+}
 function startApp(){
   document.getElementById("gate").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
-  document.getElementById("whoName").value = me;
   db = createClient(SUPABASE_URL, SUPABASE_ANON);
   route();
 }
@@ -187,10 +191,12 @@ function route(){
   if(id) renderDetail(id);
   else if(person) renderPerson(person);
   else if(v==="calendar") renderCalendar();
+  else if(v==="completed") renderCompleted();
   else renderList();
 }
 function go(id){ const u=new URL(location); u.search=""; if(id) u.searchParams.set("p",id); history.pushState({},"",u); route(); }
 function goCalendar(){ const u=new URL(location); u.search=""; u.searchParams.set("view","calendar"); history.pushState({},"",u); route(); }
+function goCompleted(){ const u=new URL(location); u.search=""; u.searchParams.set("view","completed"); history.pushState({},"",u); route(); }
 function goPerson(enc){ const name=decodeURIComponent(enc); const u=new URL(location); u.search=""; u.searchParams.set("person",name); history.pushState({},"",u); route(); }
 window.addEventListener("popstate", route);
 
@@ -213,7 +219,8 @@ async function renderList(){
   ]);
   const list = document.getElementById("list");
   if(error){ list.innerHTML = `<div class="muted-empty">Couldn't load projects: ${esc(error.message)}</div>`; return; }
-  if(!projects.length){ list.innerHTML = `<div class="muted-empty">No projects yet. Start one with "New project".</div>`; return; }
+  const active = (projects||[]).filter(p=> (p.status||"")!=="Complete");
+  if(!active.length){ list.innerHTML = `<div class="muted-empty">No active projects. Start one with "New project".</div>`; return; }
 
   const byP={}; (ms||[]).forEach(m=>{ (byP[m.project_id] ||= []).push(m); });
   const units={}; (skus||[]).forEach(s=>{ units[s.project_id]=(units[s.project_id]||0)+(s.estimated_units||0); });
@@ -224,11 +231,32 @@ async function renderList(){
     const lbl=(MS_BY_KEY[up.milestone_key]||{}).short||up.milestone_key;
     return `next: ${lbl} ${fmtDate(up.due_date)}`;
   }
-  list.innerHTML = projects.map(p => {
+  list.innerHTML = active.map(p => {
     const hint = nextHint(p.id); const u = units[p.id]||0;
     return `<div class="card proj-card" onclick="go('${p.id}')">
       <div class="row between"><h3>${esc(p.project_name)}</h3><span class="badge">${esc(p.status||"New")}</span></div>
       <div class="meta">${esc(p.customer_name||"No customer")} · ${u?u+" units":"— units"}${hint?" · "+hint:""}</div>
+    </div>`;
+  }).join("");
+}
+
+// ---------- COMPLETED ----------
+async function renderCompleted(){
+  const view = document.getElementById("view");
+  view.innerHTML = `<h2 style="margin:0 0 14px;font-size:20px">Completed projects</h2>
+    <div id="clist" class="muted-empty">Loading…</div>`;
+  const { data, error } = await db.from("projects").select("*")
+    .eq("status","Complete").order("completed_at",{ascending:false,nullsFirst:false});
+  const el = document.getElementById("clist");
+  if(error){ el.innerHTML = `<div class="muted-empty">Couldn't load: ${esc(error.message)}</div>`; return; }
+  if(!data || !data.length){ el.innerHTML = `<div class="muted-empty">No completed projects yet.</div>`; return; }
+  el.innerHTML = data.map(p=>{
+    const when = p.completed_at
+      ? new Date(p.completed_at).toLocaleString(undefined,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})
+      : "date not recorded";
+    return `<div class="card proj-card" onclick="go('${p.id}')">
+      <div class="row between"><h3>${esc(p.project_name)}</h3><span class="badge final">Completed ${esc(when)}</span></div>
+      <div class="meta">${esc(p.customer_name||"No customer")}</div>
     </div>`;
   }).join("");
 }
@@ -545,8 +573,11 @@ function renderFeed(assets){
 
 function showAdd(mode){
   const a = document.getElementById("addArea");
-  const common = `<div class="grid2"><div><label>Label</label><input id="a_label" placeholder="e.g. Logo option 2"></div>
-      <div><label>Category</label><select id="a_cat">${CATEGORIES.map(c=>`<option>${c}</option>`).join("")}</select></div></div>`;
+  const common = `<div class="grid2">
+      <div><label>Label</label><input id="a_label" placeholder="e.g. Logo option 2"></div>
+      <div><label>Category</label><select id="a_cat">${CATEGORIES.map(c=>`<option>${c}</option>`).join("")}</select></div>
+      <div><label>Added by (optional)</label><input id="a_by" value="${esc(me)}" placeholder="your name"></div>
+    </div>`;
   if(mode==="link"){
     a.innerHTML = common + `<label>Link (Dropbox, Drive, etc.)</label><input id="a_url" placeholder="https://…">
       <div class="row" style="margin-top:10px"><button class="btn small" onclick="addLink()">Add link</button><span id="a_msg" class="meta"></span></div>`;
@@ -564,9 +595,10 @@ function showAdd(mode){
 async function addLink(){
   const url = document.getElementById("a_url").value.trim();
   if(!url){ document.getElementById("a_msg").textContent="Paste a link first."; return; }
+  const by = rememberBy();
   const { error } = await db.from("project_assets").insert({ project_id: window.__pid, asset_type:"link",
     external_url:url, label: document.getElementById("a_label").value.trim() || null,
-    category: document.getElementById("a_cat").value, added_by: me || null });
+    category: document.getElementById("a_cat").value, added_by: by || null });
   if(error){ document.getElementById("a_msg").textContent="Error: "+error.message; return; }
   renderDetail(window.__pid);
 }
@@ -575,19 +607,23 @@ async function addFiles(files){
   const msg = document.getElementById("a_msg");
   const label = document.getElementById("a_label").value.trim();
   const cat = document.getElementById("a_cat").value;
+  const by = rememberBy();
   for(const f of files){
     msg.textContent = "Uploading "+f.name+"…";
     const path = window.__pid + "/" + Date.now() + "-" + f.name.replace(/[^\w.\-]/g,"_");
     const { error:upErr } = await db.storage.from(BUCKET).upload(path, f);
     if(upErr){ msg.textContent = "Upload failed: "+upErr.message; return; }
     await db.from("project_assets").insert({ project_id: window.__pid, asset_type:"file",
-      file_path:path, file_name:f.name, label: label||null, category: cat, added_by: me||null });
+      file_path:path, file_name:f.name, label: label||null, category: cat, added_by: by||null });
   }
   renderDetail(window.__pid);
 }
 async function toggleFinal(id, val){ await db.from("project_assets").update({is_finalized:val}).eq("id",id); renderDetail(window.__pid); }
 async function deleteAsset(id){ if(!confirm("Delete this entry?")) return; await db.from("project_assets").delete().eq("id",id); renderDetail(window.__pid); }
-async function updateStatus(id, status){ await db.from("projects").update({status}).eq("id",id); }
+async function updateStatus(id, status){
+  const patch = { status, completed_at: status==="Complete" ? new Date().toISOString() : null };
+  await db.from("projects").update(patch).eq("id",id);
+}
 
 // ---------- CALENDAR ----------
 async function renderCalendar(){
