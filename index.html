@@ -70,9 +70,11 @@
   .sg-row{display:flex;flex-wrap:wrap;gap:6px}
   .sz{display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted);margin:0;gap:2px}
   .sz input{width:54px;padding:5px 4px;text-align:center}
-  .ms-row{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:8px;align-items:center;margin-bottom:6px}
+  .ms-row{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px}
   .ms-label{font-size:13px}
   .ms-row input{margin:0}
+  .ms-done{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);margin:0;white-space:nowrap}
+  .ms-done input{width:auto}
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:4px;text-transform:uppercase;letter-spacing:.4px}
@@ -206,7 +208,7 @@ async function renderList(){
     </div><div id="list" class="muted-empty">Loading…</div>`;
   const [{data:projects,error}, {data:ms}, {data:skus}] = await Promise.all([
     db.from("projects").select("*").order("created_at",{ascending:false}),
-    db.from("project_milestones").select("project_id,milestone_key,due_date").not("due_date","is",null),
+    db.from("project_milestones").select("project_id,milestone_key,due_date").not("due_date","is",null).not("completed","is",true),
     db.from("project_skus").select("project_id,estimated_units")
   ]);
   const list = document.getElementById("list");
@@ -235,7 +237,7 @@ async function renderList(){
 async function loadPeople(){
   const el = document.getElementById("people");
   if(!el || !db) return;
-  const { data } = await db.from("project_milestones").select("project_id,assigned_to").not("assigned_to","is",null);
+  const { data } = await db.from("project_milestones").select("project_id,assigned_to").not("assigned_to","is",null).not("completed","is",true);
   const map={};
   (data||[]).forEach(m=>{ const n=(m.assigned_to||"").trim(); if(!n) return; (map[n] ||= new Set()).add(m.project_id); });
   const names = Object.keys(map).sort((a,b)=> a.localeCompare(b));
@@ -249,7 +251,7 @@ async function renderPerson(name){
     <div id="plist" class="muted-empty">Loading…</div>`;
   const { data, error } = await db.from("project_milestones")
     .select("project_id,due_date,milestone_key,assigned_to,projects(project_name,status)")
-    .eq("assigned_to", name);
+    .eq("assigned_to", name).not("completed","is",true);
   const el=document.getElementById("plist");
   if(error){ el.innerHTML=`<div class="muted-empty">Couldn't load: ${esc(error.message)}</div>`; return; }
   if(!data || !data.length){ el.innerHTML=`<div class="muted-empty">Nothing assigned to ${esc(name)} right now.</div>`; return; }
@@ -262,7 +264,10 @@ async function renderPerson(name){
   el.innerHTML = entries.map(({pid,info})=>{
     const ms = info.items.slice().sort((a,b)=> (a.due_date||"9999")<(b.due_date||"9999")?-1:1)
       .map(i=>{ const lbl=(MS_BY_KEY[i.milestone_key]||{}).label||i.milestone_key;
-        return `<div class="meta">• ${esc(lbl)} — ${i.due_date?fmtDate(i.due_date):"no date set"}</div>`; }).join("");
+        return `<div class="row between" style="margin-top:4px">
+          <span class="meta">• ${esc(lbl)} — ${i.due_date?fmtDate(i.due_date):"no date set"}</span>
+          <button class="btn ghost small" onclick="event.stopPropagation();markDone('${pid}','${i.milestone_key}')">Mark done</button>
+        </div>`; }).join("");
     return `<div class="card proj-card" onclick="go('${pid}')">
       <div class="row between"><h3>${esc(info.name)}</h3><span class="badge">${esc(info.status||"New")}</span></div>
       <div style="margin-top:6px">${ms}</div></div>`;
@@ -278,16 +283,18 @@ function milestoneRowsHtml(existing){
       <div class="ms-label">${esc(m.label)}</div>
       <input class="ms-date" type="date" data-key="${m.key}" value="${e.due_date||''}">
       <input class="ms-person" placeholder="assigned to" data-key="${m.key}" value="${esc(e.assigned_to||'')}">
+      <label class="ms-done"><input type="checkbox" class="ms-complete" data-key="${m.key}" ${e.completed?'checked':''}> done</label>
     </div>`;
   }).join("");
 }
 function collectMilestones(scope, projectId){
-  const dates={}, persons={};
+  const dates={}, persons={}, done={};
   scope.querySelectorAll(".ms-date").forEach(i=> dates[i.dataset.key]=i.value);
   scope.querySelectorAll(".ms-person").forEach(i=> persons[i.dataset.key]=i.value.trim());
+  scope.querySelectorAll(".ms-complete").forEach(i=> done[i.dataset.key]=i.checked);
   return MILESTONES.map(m=>({ project_id:projectId, milestone_key:m.key,
-    due_date: dates[m.key]||null, assigned_to: persons[m.key]||null }))
-    .filter(r=> r.due_date || r.assigned_to);
+    due_date: dates[m.key]||null, assigned_to: persons[m.key]||null, completed: !!done[m.key] }))
+    .filter(r=> r.due_date || r.assigned_to || r.completed);
 }
 
 // ---------- pricing fields ----------
@@ -416,7 +423,7 @@ async function renderDetail(id){
   ]);
   if(pe || !p){ document.getElementById("detail").innerHTML = `<div class="muted-empty">Project not found.</div>`; return; }
 
-  const msMap={}; (mss||[]).forEach(m=> msMap[m.milestone_key]={due_date:m.due_date, assigned_to:m.assigned_to});
+  const msMap={}; (mss||[]).forEach(m=> msMap[m.milestone_key]={due_date:m.due_date, assigned_to:m.assigned_to, completed:m.completed});
   const totalUnits = (skus||[]).reduce((a,s)=> a+(s.estimated_units||0),0);
 
   const prodRows = (skus&&skus.length) ? skus.map(s=>{
@@ -459,7 +466,7 @@ async function renderDetail(id){
     <div class="card">
       <div class="row between"><h3 style="margin:0;font-size:16px">Timeline</h3>
         <button class="btn small" onclick="saveMilestones('${p.id}')">Save timeline</button></div>
-      <p class="meta" style="margin:4px 0 10px">All optional. Anything with both a date and a person shows on the calendar.</p>
+      <p class="meta" style="margin:4px 0 10px">All optional. A step with both a date and a person shows on the calendar. Check "done" to clear it from calendars and task sheets.</p>
       <div id="msEdit">${milestoneRowsHtml(msMap)}</div>
       <span id="msMsg" class="meta"></span>
     </div>
@@ -598,7 +605,7 @@ async function renderCalendar(){
 
   const [{data:mss,error}, {data:projects}] = await Promise.all([
     db.from("project_milestones").select("project_id,due_date,assigned_to,milestone_key,projects(project_name,status)")
-      .not("due_date","is",null).not("assigned_to","is",null),
+      .not("due_date","is",null).not("assigned_to","is",null).not("completed","is",true),
     db.from("projects").select("id,project_name")
   ]);
   const el = document.getElementById("cal");
@@ -649,7 +656,10 @@ function openDay(ds){
       <div class="di-top"><span class="badge">${esc(full)}</span>${st?`<span class="meta">${esc(st)}</span>`:""}</div>
       <div style="margin-top:4px"><strong>${esc(pn)}</strong></div>
       <div class="meta">Assigned to ${esc(m.assigned_to||"—")}</div>
-      <div style="margin-top:8px"><button class="btn small" onclick="openProjectFromModal('${m.project_id}')">Open project</button></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn small" onclick="openProjectFromModal('${m.project_id}')">Open project</button>
+        <button class="btn ghost small" onclick="markDone('${m.project_id}','${m.milestone_key}')">Mark done</button>
+      </div>
     </div>`;
   }).join("") : `<div class="muted-empty">Nothing on this day.</div>`;
   const bg = document.createElement("div");
@@ -664,6 +674,10 @@ function openDay(ds){
 }
 function closeDay(){ const m=document.getElementById("dayModal"); if(m) m.remove(); }
 function openProjectFromModal(pid){ closeDay(); go(pid); }
+async function markDone(pid, key){
+  await db.from("project_milestones").update({completed:true}).eq("project_id",pid).eq("milestone_key",key);
+  closeDay(); route();
+}
 </script>
 </body>
 </html>
