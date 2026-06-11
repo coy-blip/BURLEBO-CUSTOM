@@ -78,6 +78,13 @@
   .chip{background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:2px 6px;margin-top:3px;
     cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:11px}
   .chip:hover{background:#dfe4d4}
+  .cal-cell.has-items{cursor:pointer}
+  .cal-cell.has-items:hover{border-color:var(--accent);background:#fafbf7}
+  .modal-bg{position:fixed;inset:0;background:rgba(20,22,18,.45);display:flex;align-items:flex-start;
+    justify-content:center;padding:48px 16px;z-index:50;overflow:auto}
+  .modal{background:var(--card);border-radius:12px;max-width:540px;width:100%;padding:20px}
+  .day-item{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+  .day-item .di-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   @media(max-width:600px){.grid2{grid-template-columns:1fr}.cal-cell{min-height:64px}.ms-row{grid-template-columns:1fr}}
 </style>
 </head>
@@ -540,7 +547,7 @@ async function renderCalendar(){
     <div id="cal" class="muted-empty">Loading…</div>`;
 
   const [{data:mss,error}, {data:projects}] = await Promise.all([
-    db.from("project_milestones").select("project_id,due_date,assigned_to,milestone_key,projects(project_name)")
+    db.from("project_milestones").select("project_id,due_date,assigned_to,milestone_key,projects(project_name,status)")
       .not("due_date","is",null).not("assigned_to","is",null),
     db.from("projects").select("id,project_name")
   ]);
@@ -549,6 +556,7 @@ async function renderCalendar(){
 
   const byDate={}; const scheduled=new Set();
   (mss||[]).forEach(m=>{ (byDate[m.due_date] ||= []).push(m); scheduled.add(m.project_id); });
+  window.__calByDate = byDate;
 
   const year=calRef.getFullYear(), month=calRef.getMonth();
   const firstDow=new Date(year,month,1).getDay(), daysIn=new Date(year,month+1,0).getDate();
@@ -559,13 +567,15 @@ async function renderCalendar(){
   for(let i=0;i<firstDow;i++) cells += `<div class="cal-cell empty"></div>`;
   for(let d=1; d<=daysIn; d++){
     const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const chips = (byDate[ds]||[]).map(m=>{
+    const items = byDate[ds]||[];
+    const chips = items.map(m=>{
       const lbl=(MS_BY_KEY[m.milestone_key]||{}).short||m.milestone_key;
-      const pn=(m.projects&&m.projects.project_name)||"Project";
       const full=(MS_BY_KEY[m.milestone_key]||{}).label||m.milestone_key;
-      return `<div class="chip" title="${esc(pn+' — '+full+' — '+(m.assigned_to||''))}" onclick="go('${m.project_id}')">${esc(lbl)}: ${esc(pn)}</div>`;
+      const pn=(m.projects&&m.projects.project_name)||"Project";
+      return `<div class="chip" title="${esc(full+' — '+pn+' — '+(m.assigned_to||''))}">${esc(lbl)}: ${esc(pn)}</div>`;
     }).join("");
-    cells += `<div class="cal-cell ${ds===today?'today':''}"><div class="cal-daynum">${d}</div>${chips}</div>`;
+    const attrs = items.length ? `class="cal-cell has-items ${ds===today?'today':''}" onclick="openDay('${ds}')"` : `class="cal-cell ${ds===today?'today':''}"`;
+    cells += `<div ${attrs}><div class="cal-daynum">${d}</div>${chips}</div>`;
   }
 
   const unscheduled=(projects||[]).filter(p=>!scheduled.has(p.id));
@@ -577,6 +587,33 @@ async function renderCalendar(){
   el.outerHTML = `<div class="cal-grid">${dow}${cells}</div>${footer}`;
 }
 function shiftMonth(n){ calRef.setMonth(calRef.getMonth()+n); renderCalendar(); }
+
+function openDay(ds){
+  const items = (window.__calByDate||{})[ds] || [];
+  const heading = new Date(ds+"T00:00:00").toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+  const rows = items.length ? items.map(m=>{
+    const full=(MS_BY_KEY[m.milestone_key]||{}).label||m.milestone_key;
+    const pn=(m.projects&&m.projects.project_name)||"Project";
+    const st=(m.projects&&m.projects.status)||"";
+    return `<div class="day-item">
+      <div class="di-top"><span class="badge">${esc(full)}</span>${st?`<span class="meta">${esc(st)}</span>`:""}</div>
+      <div style="margin-top:4px"><strong>${esc(pn)}</strong></div>
+      <div class="meta">Assigned to ${esc(m.assigned_to||"—")}</div>
+      <div style="margin-top:8px"><button class="btn small" onclick="openProjectFromModal('${m.project_id}')">Open project</button></div>
+    </div>`;
+  }).join("") : `<div class="muted-empty">Nothing on this day.</div>`;
+  const bg = document.createElement("div");
+  bg.className = "modal-bg"; bg.id = "dayModal";
+  bg.onclick = e=>{ if(e.target===bg) closeDay(); };
+  bg.innerHTML = `<div class="modal">
+      <div class="row between" style="margin-bottom:12px">
+        <h3 style="margin:0;font-size:17px">${esc(heading)}</h3>
+        <button class="link-x" style="color:var(--muted)" onclick="closeDay()">close</button>
+      </div>${rows}</div>`;
+  document.body.appendChild(bg);
+}
+function closeDay(){ const m=document.getElementById("dayModal"); if(m) m.remove(); }
+function openProjectFromModal(pid){ closeDay(); go(pid); }
 </script>
 </body>
 </html>
