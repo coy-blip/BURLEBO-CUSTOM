@@ -9,7 +9,7 @@
   :root{
     --bg:#f6f5f1; --card:#ffffff; --ink:#23271f; --muted:#6b7163;
     --line:#e3e1d8; --accent:#4a5d3a; --accent-soft:#eef0e7;
-    --danger:#9a3b2e; --radius:10px;
+    --danger:#9a3b2e; --danger-soft:#f3e3df; --radius:10px;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -28,6 +28,7 @@
     padding:8px 14px;border-radius:8px;font-size:14px}
   .btn.secondary{background:#fff;color:var(--accent)}
   .btn.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+  .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
   .btn.small{padding:5px 10px;font-size:13px}
   .btn:focus-visible{outline:2px solid #23271f;outline-offset:2px}
   .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -64,11 +65,9 @@
   .sg-row{display:flex;flex-wrap:wrap;gap:6px}
   .sz{display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted);margin:0;gap:2px}
   .sz input{width:54px;padding:5px 4px;text-align:center}
-  /* milestone timeline */
   .ms-row{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:8px;align-items:center;margin-bottom:6px}
   .ms-label{font-size:13px}
   .ms-row input{margin:0}
-  /* calendar */
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:4px;text-transform:uppercase;letter-spacing:.4px}
@@ -98,17 +97,31 @@
     Baby:  ["Newborn","0-3","3-6","6-12","12-18 months"]
   };
   const MILESTONES = [
-    {key:"designs_finalized", label:"Designs Finalized",                       short:"Designs final"},
-    {key:"graphics_artwork",  label:"Graphics/Artwork",                        short:"Graphics"},
-    {key:"tech_pack",         label:"Tech Pack Complete & Sent to Factory",    short:"Tech pack"},
-    {key:"proto_1",           label:"Proto #1",                                short:"Proto #1"},
-    {key:"proto_2",           label:"Proto #2",                                short:"Proto #2"},
-    {key:"po_placement",      label:"PO Placement",                            short:"PO placed"},
-    {key:"ex_factory",        label:"Ex-Factory",                              short:"Ex-factory"},
-    {key:"in_hands",          label:"In Hands",                                short:"In hands"},
-    {key:"launch",            label:"Launch",                                  short:"Launch"}
+    {key:"designs_finalized", label:"Designs Finalized",                    short:"Designs final"},
+    {key:"graphics_artwork",  label:"Graphics/Artwork",                     short:"Graphics"},
+    {key:"tech_pack",         label:"Tech Pack Complete & Sent to Factory", short:"Tech pack"},
+    {key:"proto_1",           label:"Proto #1",                             short:"Proto #1"},
+    {key:"proto_2",           label:"Proto #2",                             short:"Proto #2"},
+    {key:"po_placement",      label:"PO Placement",                         short:"PO placed"},
+    {key:"ex_factory",        label:"Ex-Factory",                           short:"Ex-factory"},
+    {key:"in_hands",          label:"In Hands",                             short:"In hands"},
+    {key:"launch",            label:"Launch",                               short:"Launch"}
   ];
   const MS_BY_KEY = Object.fromEntries(MILESTONES.map(m=>[m.key,m]));
+  const PRICING_FIELDS = [
+    {key:"unit_price",        label:"Unit price",                type:"money"},
+    {key:"blank_cost",        label:"Blank garment cost",        type:"money"},
+    {key:"decoration_cost",   label:"Decoration cost (per unit)", type:"money"},
+    {key:"setup_fee",         label:"Setup fee",                 type:"money"},
+    {key:"sample_cost",       label:"Sample / proto cost",       type:"money"},
+    {key:"shipping_cost",     label:"Shipping / freight",        type:"money"},
+    {key:"discount",          label:"Discount",                  type:"money"},
+    {key:"tax",               label:"Tax",                       type:"money"},
+    {key:"total_order_value", label:"Total order value",         type:"money"},
+    {key:"deposit",           label:"Deposit",                   type:"money"},
+    {key:"balance_due",       label:"Balance due",               type:"money"},
+    {key:"payment_terms",     label:"Payment terms",             type:"text"}
+  ];
 </script>
 
 <div id="gate" class="gate">
@@ -164,6 +177,7 @@ window.addEventListener("popstate", route);
 const esc = s => (s??"").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtDate = d => d ? new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : "—";
 const fmtStamp = t => new Date(t).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+const money = n => "$"+Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 
 // ---------- LIST ----------
 async function renderList(){
@@ -172,15 +186,17 @@ async function renderList(){
       <h2 style="margin:0;font-size:20px">Projects</h2>
       <button class="btn" onclick="renderNew()">New project</button>
     </div><div id="list" class="muted-empty">Loading…</div>`;
-  const [{data:projects,error}, {data:ms}] = await Promise.all([
+  const [{data:projects,error}, {data:ms}, {data:skus}] = await Promise.all([
     db.from("projects").select("*").order("created_at",{ascending:false}),
-    db.from("project_milestones").select("project_id,milestone_key,due_date").not("due_date","is",null)
+    db.from("project_milestones").select("project_id,milestone_key,due_date").not("due_date","is",null),
+    db.from("project_skus").select("project_id,estimated_units")
   ]);
   const list = document.getElementById("list");
   if(error){ list.innerHTML = `<div class="muted-empty">Couldn't load projects: ${esc(error.message)}</div>`; return; }
   if(!projects.length){ list.innerHTML = `<div class="muted-empty">No projects yet. Start one with "New project".</div>`; return; }
 
   const byP={}; (ms||[]).forEach(m=>{ (byP[m.project_id] ||= []).push(m); });
+  const units={}; (skus||[]).forEach(s=>{ units[s.project_id]=(units[s.project_id]||0)+(s.estimated_units||0); });
   const today = todayStr();
   function nextHint(pid){
     const arr=(byP[pid]||[]).filter(m=>m.due_date).sort((a,b)=> a.due_date<b.due_date?-1:1);
@@ -189,10 +205,10 @@ async function renderList(){
     return `next: ${lbl} ${fmtDate(up.due_date)}`;
   }
   list.innerHTML = projects.map(p => {
-    const hint = nextHint(p.id);
+    const hint = nextHint(p.id); const u = units[p.id]||0;
     return `<div class="card proj-card" onclick="go('${p.id}')">
       <div class="row between"><h3>${esc(p.project_name)}</h3><span class="badge">${esc(p.status||"New")}</span></div>
-      <div class="meta">${esc(p.customer_name||"No customer")} · ${p.estimated_units??"—"} units${hint?" · "+hint:""}</div>
+      <div class="meta">${esc(p.customer_name||"No customer")} · ${u?u+" units":"— units"}${hint?" · "+hint:""}</div>
     </div>`;
   }).join("");
 }
@@ -216,6 +232,24 @@ function collectMilestones(scope, projectId){
   return MILESTONES.map(m=>({ project_id:projectId, milestone_key:m.key,
     due_date: dates[m.key]||null, assigned_to: persons[m.key]||null }))
     .filter(r=> r.due_date || r.assigned_to);
+}
+
+// ---------- pricing fields ----------
+function pricingFieldsHtml(existing){
+  existing = existing || {};
+  return PRICING_FIELDS.map(f=>{
+    const v = (existing[f.key]!=null) ? existing[f.key] : "";
+    if(f.type==="money") return `<div><label>${esc(f.label)}</label><input class="pr" data-key="${f.key}" data-type="money" type="number" step="0.01" min="0" value="${esc(v)}"></div>`;
+    return `<div><label>${esc(f.label)}</label><input class="pr" data-key="${f.key}" data-type="text" value="${esc(v)}"></div>`;
+  }).join("");
+}
+function collectPricing(scope){
+  const obj={};
+  scope.querySelectorAll(".pr").forEach(i=>{
+    const val=i.value.trim(); if(val==="") return;
+    obj[i.dataset.key] = i.dataset.type==="money" ? parseFloat(val) : val;
+  });
+  return obj;
 }
 
 // ---------- product entry ----------
@@ -256,10 +290,12 @@ function renderNew(){
         <div><label>Customer email</label><input id="f_email" type="email"></div>
         <div><label>Customer phone</label><input id="f_phone"></div>
         <div><label>Sales rep (created by)</label><input id="f_rep"></div>
-        <div><label>Estimated total units</label><input id="f_units" type="number" min="0"></div>
       </div>
-      <label>Pricing details</label><textarea id="f_pricing" placeholder="Quoted pricing, terms, discounts…"></textarea>
       <label>Notes</label><textarea id="f_notes"></textarea>
+
+      <h3 style="margin:18px 0 4px;font-size:16px">Pricing details</h3>
+      <div id="priceNew" class="grid2">${pricingFieldsHtml()}</div>
+      <label>Other pricing notes</label><textarea id="f_pricing" placeholder="Anything that doesn't fit a box above…"></textarea>
 
       <h3 style="margin:18px 0 4px;font-size:16px">Timeline / due dates</h3>
       <p class="meta" style="margin:0 0 8px">All optional. Anything with both a date and a person shows on the calendar.</p>
@@ -289,8 +325,8 @@ async function saveProject(){
     customer_name: document.getElementById("f_customer").value.trim() || null,
     customer_email: document.getElementById("f_email").value.trim() || null,
     customer_phone: document.getElementById("f_phone").value.trim() || null,
-    estimated_units: parseInt(document.getElementById("f_units").value) || null,
     created_by: document.getElementById("f_rep").value.trim() || me || null,
+    pricing: collectPricing(document.getElementById("priceNew")),
     pricing_notes: document.getElementById("f_pricing").value.trim() || null,
     notes: document.getElementById("f_notes").value.trim() || null
   };
@@ -325,6 +361,7 @@ async function renderDetail(id){
   if(pe || !p){ document.getElementById("detail").innerHTML = `<div class="muted-empty">Project not found.</div>`; return; }
 
   const msMap={}; (mss||[]).forEach(m=> msMap[m.milestone_key]={due_date:m.due_date, assigned_to:m.assigned_to});
+  const totalUnits = (skus||[]).reduce((a,s)=> a+(s.estimated_units||0),0);
 
   const prodRows = (skus&&skus.length) ? skus.map(s=>{
     const sizeStr = s.sizes && Object.keys(s.sizes).length
@@ -335,6 +372,14 @@ async function renderDetail(id){
         ${s.estimated_units!=null?`<span class="meta">${s.estimated_units} units</span>`:""}
       </div>${sizeStr?`<div class="sub">${sizeStr}</div>`:""}</div>`;
   }).join("") : `<div class="muted-empty">No products listed.</div>`;
+
+  const pr = p.pricing || {};
+  const prFilled = PRICING_FIELDS.filter(f=> pr[f.key]!=null && pr[f.key]!=="");
+  const pricingCard = (prFilled.length || p.pricing_notes) ? `
+    <div class="card"><h3 style="margin:0 0 8px;font-size:16px">Pricing</h3>
+      <div class="grid2">${prFilled.map(f=>`<div class="meta"><strong>${esc(f.label)}:</strong> ${f.type==="money"?money(pr[f.key]):esc(pr[f.key])}</div>`).join("")}</div>
+      ${p.pricing_notes?`<div class="meta" style="margin-top:6px"><strong>Notes:</strong> ${esc(p.pricing_notes)}</div>`:""}
+    </div>` : "";
 
   document.getElementById("detail").innerHTML = `
     <div class="card">
@@ -347,12 +392,13 @@ async function renderDetail(id){
         <div class="meta"><strong>Customer:</strong> ${esc(p.customer_name||"—")}</div>
         <div class="meta"><strong>Email:</strong> ${esc(p.customer_email||"—")}</div>
         <div class="meta"><strong>Phone:</strong> ${esc(p.customer_phone||"—")}</div>
-        <div class="meta"><strong>Est. units:</strong> ${p.estimated_units??"—"}</div>
+        <div class="meta"><strong>Total units:</strong> ${totalUnits||"—"}</div>
         <div class="meta"><strong>Sales rep:</strong> ${esc(p.created_by||"—")}</div>
       </div>
-      ${p.pricing_notes?`<div class="meta" style="margin-top:8px"><strong>Pricing:</strong> ${esc(p.pricing_notes)}</div>`:""}
-      ${p.notes?`<div class="meta" style="margin-top:4px"><strong>Notes:</strong> ${esc(p.notes)}</div>`:""}
+      ${p.notes?`<div class="meta" style="margin-top:8px"><strong>Notes:</strong> ${esc(p.notes)}</div>`:""}
     </div>
+
+    ${pricingCard}
 
     <div class="card">
       <div class="row between"><h3 style="margin:0;font-size:16px">Timeline</h3>
@@ -374,6 +420,13 @@ async function renderDetail(id){
         <button class="btn ghost small" onclick="showAdd('link')">Add a link</button>
       </div>
       <div id="addArea"></div><div id="feed">${renderFeed(assets)}</div>
+    </div>
+
+    <div class="card" style="border-color:var(--danger-soft)">
+      <h3 style="margin:0 0 8px;font-size:16px;color:var(--danger)">Delete project</h3>
+      <div id="dangerZone">
+        <button class="btn danger" onclick="armDelete('${p.id}')">Delete project</button>
+      </div>
     </div>`;
   showAdd("file");
   window.__pid = id;
@@ -387,6 +440,26 @@ async function saveMilestones(pid){
   if(rows.length){ const ins = await db.from("project_milestones").insert(rows);
     if(ins.error){ document.getElementById("msMsg").textContent = "Error: "+ins.error.message; return; } }
   document.getElementById("msMsg").textContent = "Saved.";
+}
+
+// ---------- delete (double confirm) ----------
+function armDelete(pid){
+  document.getElementById("dangerZone").innerHTML = `
+    <p class="meta" style="color:var(--danger);margin:0 0 8px">This permanently removes the project and all of its products, timeline, files, and links. This cannot be undone.</p>
+    <div class="row">
+      <button class="btn danger" onclick="reallyDeleteProject('${pid}')">Yes, delete permanently</button>
+      <button class="btn ghost" onclick="renderDetail('${pid}')">Cancel</button>
+    </div>`;
+}
+async function reallyDeleteProject(pid){
+  if(!confirm("Final check: permanently delete this project and everything in it?")) return;
+  try{
+    const { data:files } = await db.storage.from(BUCKET).list(pid);
+    if(files && files.length) await db.storage.from(BUCKET).remove(files.map(f=> pid+"/"+f.name));
+  }catch(e){ /* ignore storage cleanup errors, still delete the record */ }
+  const { error } = await db.from("projects").delete().eq("id", pid);
+  if(error){ alert("Couldn't delete: "+error.message); return; }
+  go();
 }
 
 function renderFeed(assets){
@@ -489,7 +562,8 @@ async function renderCalendar(){
     const chips = (byDate[ds]||[]).map(m=>{
       const lbl=(MS_BY_KEY[m.milestone_key]||{}).short||m.milestone_key;
       const pn=(m.projects&&m.projects.project_name)||"Project";
-      return `<div class="chip" title="${esc(pn+' — '+(MS_BY_KEY[m.milestone_key]||{}).label+' — '+(m.assigned_to||''))}" onclick="go('${m.project_id}')">${esc(lbl)}: ${esc(pn)}</div>`;
+      const full=(MS_BY_KEY[m.milestone_key]||{}).label||m.milestone_key;
+      return `<div class="chip" title="${esc(pn+' — '+full+' — '+(m.assigned_to||''))}" onclick="go('${m.project_id}')">${esc(lbl)}: ${esc(pn)}</div>`;
     }).join("");
     cells += `<div class="cal-cell ${ds===today?'today':''}"><div class="cal-daynum">${d}</div>${chips}</div>`;
   }
