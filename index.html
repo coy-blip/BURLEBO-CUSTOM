@@ -58,25 +58,28 @@
   .gate{max-width:320px;margin:80px auto;text-align:center}
   .link-x{color:var(--danger);cursor:pointer;font-size:13px;background:none;border:none;padding:4px}
   .back{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;padding:0;margin-bottom:8px;font-size:14px}
-  /* product entry */
   .prod{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px;background:#fbfbf8}
   .sizegroup{margin-top:10px}
   .sg-label{font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
   .sg-row{display:flex;flex-wrap:wrap;gap:6px}
   .sz{display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted);margin:0;gap:2px}
   .sz input{width:54px;padding:5px 4px;text-align:center}
+  /* milestone timeline */
+  .ms-row{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:8px;align-items:center;margin-bottom:6px}
+  .ms-label{font-size:13px}
+  .ms-row input{margin:0}
   /* calendar */
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:4px;text-transform:uppercase;letter-spacing:.4px}
-  .cal-cell{min-height:88px;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff}
+  .cal-cell{min-height:90px;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff}
   .cal-cell.empty{background:transparent;border:none}
   .cal-cell.today{border-color:var(--accent);background:var(--accent-soft)}
   .cal-daynum{color:var(--muted);font-size:11px}
   .chip{background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:2px 6px;margin-top:3px;
     cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:11px}
   .chip:hover{background:#dfe4d4}
-  @media(max-width:600px){.grid2{grid-template-columns:1fr}.cal-cell{min-height:64px}}
+  @media(max-width:600px){.grid2{grid-template-columns:1fr}.cal-cell{min-height:64px}.ms-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -94,6 +97,18 @@
     Youth: ["2T","3T","4T","X-Small","Small","Medium","Large","X-Large"],
     Baby:  ["Newborn","0-3","3-6","6-12","12-18 months"]
   };
+  const MILESTONES = [
+    {key:"designs_finalized", label:"Designs Finalized",                       short:"Designs final"},
+    {key:"graphics_artwork",  label:"Graphics/Artwork",                        short:"Graphics"},
+    {key:"tech_pack",         label:"Tech Pack Complete & Sent to Factory",    short:"Tech pack"},
+    {key:"proto_1",           label:"Proto #1",                                short:"Proto #1"},
+    {key:"proto_2",           label:"Proto #2",                                short:"Proto #2"},
+    {key:"po_placement",      label:"PO Placement",                            short:"PO placed"},
+    {key:"ex_factory",        label:"Ex-Factory",                              short:"Ex-factory"},
+    {key:"in_hands",          label:"In Hands",                                short:"In hands"},
+    {key:"launch",            label:"Launch",                                  short:"Launch"}
+  ];
+  const MS_BY_KEY = Object.fromEntries(MILESTONES.map(m=>[m.key,m]));
 </script>
 
 <div id="gate" class="gate">
@@ -111,9 +126,7 @@
       <button onclick="go()">Projects</button>
       <button onclick="goCalendar()">Calendar</button>
     </nav>
-    <span class="who">You are
-      <input id="whoName" placeholder="your name" onchange="saveName()">
-    </span>
+    <span class="who">You are <input id="whoName" placeholder="your name" onchange="saveName()"></span>
   </header>
   <main id="view"></main>
 </div>
@@ -123,14 +136,13 @@ const { createClient } = supabase;
 let db = null;
 let me = localStorage.getItem("cc_name") || "";
 let calRef = new Date(); calRef.setDate(1);
+const todayStr = () => new Date().toLocaleDateString("en-CA");
 
 function tryGate(){
-  if(document.getElementById("pw").value === APP_PASSWORD){
-    sessionStorage.setItem("cc_ok","1"); startApp();
-  } else { document.getElementById("gateErr").textContent = "Wrong password."; }
+  if(document.getElementById("pw").value === APP_PASSWORD){ sessionStorage.setItem("cc_ok","1"); startApp(); }
+  else { document.getElementById("gateErr").textContent = "Wrong password."; }
 }
 function saveName(){ me = document.getElementById("whoName").value.trim(); localStorage.setItem("cc_name", me); }
-
 function startApp(){
   document.getElementById("gate").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
@@ -140,13 +152,10 @@ function startApp(){
 }
 window.addEventListener("DOMContentLoaded", ()=>{ if(sessionStorage.getItem("cc_ok")==="1") startApp(); });
 
-// ---------- routing ----------
 function route(){
   const params = new URLSearchParams(location.search);
   const id = params.get("p"), v = params.get("view");
-  if(id) renderDetail(id);
-  else if(v==="calendar") renderCalendar();
-  else renderList();
+  if(id) renderDetail(id); else if(v==="calendar") renderCalendar(); else renderList();
 }
 function go(id){ const u=new URL(location); u.search=""; if(id) u.searchParams.set("p",id); history.pushState({},"",u); route(); }
 function goCalendar(){ const u=new URL(location); u.search=""; u.searchParams.set("view","calendar"); history.pushState({},"",u); route(); }
@@ -163,34 +172,64 @@ async function renderList(){
       <h2 style="margin:0;font-size:20px">Projects</h2>
       <button class="btn" onclick="renderNew()">New project</button>
     </div><div id="list" class="muted-empty">Loading…</div>`;
-  const { data, error } = await db.from("projects").select("*").order("created_at",{ascending:false});
+  const [{data:projects,error}, {data:ms}] = await Promise.all([
+    db.from("projects").select("*").order("created_at",{ascending:false}),
+    db.from("project_milestones").select("project_id,milestone_key,due_date").not("due_date","is",null)
+  ]);
   const list = document.getElementById("list");
   if(error){ list.innerHTML = `<div class="muted-empty">Couldn't load projects: ${esc(error.message)}</div>`; return; }
-  if(!data.length){ list.innerHTML = `<div class="muted-empty">No projects yet. Start one with "New project".</div>`; return; }
-  list.innerHTML = data.map(p => `
-    <div class="card proj-card" onclick="go('${p.id}')">
+  if(!projects.length){ list.innerHTML = `<div class="muted-empty">No projects yet. Start one with "New project".</div>`; return; }
+
+  const byP={}; (ms||[]).forEach(m=>{ (byP[m.project_id] ||= []).push(m); });
+  const today = todayStr();
+  function nextHint(pid){
+    const arr=(byP[pid]||[]).filter(m=>m.due_date).sort((a,b)=> a.due_date<b.due_date?-1:1);
+    const up=arr.find(m=>m.due_date>=today); if(!up) return "";
+    const lbl=(MS_BY_KEY[up.milestone_key]||{}).short||up.milestone_key;
+    return `next: ${lbl} ${fmtDate(up.due_date)}`;
+  }
+  list.innerHTML = projects.map(p => {
+    const hint = nextHint(p.id);
+    return `<div class="card proj-card" onclick="go('${p.id}')">
       <div class="row between"><h3>${esc(p.project_name)}</h3><span class="badge">${esc(p.status||"New")}</span></div>
-      <div class="meta">${esc(p.customer_name||"No customer")} · due ${fmtDate(p.due_date)} · ${p.estimated_units??"—"} units</div>
-    </div>`).join("");
+      <div class="meta">${esc(p.customer_name||"No customer")} · ${p.estimated_units??"—"} units${hint?" · "+hint:""}</div>
+    </div>`;
+  }).join("");
 }
 
-// ---------- NEW ----------
+// ---------- milestone rows ----------
+function milestoneRowsHtml(existing){
+  existing = existing || {};
+  return MILESTONES.map(m=>{
+    const e = existing[m.key] || {};
+    return `<div class="ms-row">
+      <div class="ms-label">${esc(m.label)}</div>
+      <input class="ms-date" type="date" data-key="${m.key}" value="${e.due_date||''}">
+      <input class="ms-person" placeholder="assigned to" data-key="${m.key}" value="${esc(e.assigned_to||'')}">
+    </div>`;
+  }).join("");
+}
+function collectMilestones(scope, projectId){
+  const dates={}, persons={};
+  scope.querySelectorAll(".ms-date").forEach(i=> dates[i.dataset.key]=i.value);
+  scope.querySelectorAll(".ms-person").forEach(i=> persons[i.dataset.key]=i.value.trim());
+  return MILESTONES.map(m=>({ project_id:projectId, milestone_key:m.key,
+    due_date: dates[m.key]||null, assigned_to: persons[m.key]||null }))
+    .filter(r=> r.due_date || r.assigned_to);
+}
+
+// ---------- product entry ----------
 function sizeGroupsHtml(){
   return Object.entries(SIZES).map(([cat,sizes])=>`
-    <div class="sizegroup">
-      <div class="sg-label">${cat}</div>
-      <div class="sg-row">
-        ${sizes.map(sz=>`<label class="sz">${esc(sz)}
-          <input class="p-size" type="number" min="0" data-key="${esc(cat+'|'+sz)}" oninput="recalcTotal(this)"></label>`).join("")}
-      </div>
-    </div>`).join("");
+    <div class="sizegroup"><div class="sg-label">${cat}</div><div class="sg-row">
+      ${sizes.map(sz=>`<label class="sz">${esc(sz)}
+        <input class="p-size" type="number" min="0" data-key="${esc(cat+'|'+sz)}" oninput="recalcTotal(this)"></label>`).join("")}
+    </div></div>`).join("");
 }
 function productCardHtml(){
   return `<div class="prod">
-    <div class="grid2">
-      <div><label>Product name</label><input class="p-name"></div>
-      <div><label>SKU</label><input class="p-sku"></div>
-    </div>
+    <div class="grid2"><div><label>Product name</label><input class="p-name"></div>
+      <div><label>SKU</label><input class="p-sku"></div></div>
     <label>Total units <span class="meta" style="text-transform:none">— auto-sums from sizes, or type a number</span></label>
     <input class="p-total" type="number" min="0">
     ${sizeGroupsHtml()}
@@ -203,6 +242,7 @@ function recalcTotal(el){
   if(sum>0) prod.querySelector(".p-total").value = sum;
 }
 
+// ---------- NEW ----------
 function renderNew(){
   const view = document.getElementById("view");
   view.innerHTML = `
@@ -215,12 +255,15 @@ function renderNew(){
         <div><label>Customer</label><input id="f_customer"></div>
         <div><label>Customer email</label><input id="f_email" type="email"></div>
         <div><label>Customer phone</label><input id="f_phone"></div>
-        <div><label>Due date</label><input id="f_due" type="date"></div>
-        <div><label>Estimated total units</label><input id="f_units" type="number" min="0"></div>
         <div><label>Sales rep (created by)</label><input id="f_rep"></div>
+        <div><label>Estimated total units</label><input id="f_units" type="number" min="0"></div>
       </div>
       <label>Pricing details</label><textarea id="f_pricing" placeholder="Quoted pricing, terms, discounts…"></textarea>
       <label>Notes</label><textarea id="f_notes"></textarea>
+
+      <h3 style="margin:18px 0 4px;font-size:16px">Timeline / due dates</h3>
+      <p class="meta" style="margin:0 0 8px">All optional. Anything with both a date and a person shows on the calendar.</p>
+      <div id="msNew">${milestoneRowsHtml()}</div>
 
       <h3 style="margin:18px 0 6px;font-size:16px">Products to customize</h3>
       <div id="prods">${productCardHtml()}</div>
@@ -242,12 +285,10 @@ async function saveProject(){
   document.getElementById("saveMsg").textContent = "Saving…";
 
   const payload = {
-    project_name: name,
-    status: document.getElementById("f_status").value,
+    project_name: name, status: document.getElementById("f_status").value,
     customer_name: document.getElementById("f_customer").value.trim() || null,
     customer_email: document.getElementById("f_email").value.trim() || null,
     customer_phone: document.getElementById("f_phone").value.trim() || null,
-    due_date: document.getElementById("f_due").value || null,
     estimated_units: parseInt(document.getElementById("f_units").value) || null,
     created_by: document.getElementById("f_rep").value.trim() || me || null,
     pricing_notes: document.getElementById("f_pricing").value.trim() || null,
@@ -255,6 +296,9 @@ async function saveProject(){
   };
   const { data, error } = await db.from("projects").insert(payload).select().single();
   if(error){ document.getElementById("saveMsg").textContent = "Error: "+error.message; document.getElementById("saveBtn").disabled=false; return; }
+
+  const milestones = collectMilestones(document.getElementById("msNew"), data.id);
+  if(milestones.length) await db.from("project_milestones").insert(milestones);
 
   const prods = [...document.querySelectorAll("#prods .prod")].map(p=>{
     const sizes={};
@@ -272,23 +316,24 @@ async function saveProject(){
 async function renderDetail(id){
   const view = document.getElementById("view");
   view.innerHTML = `<button class="back" onclick="go()">← All projects</button><div id="detail" class="muted-empty">Loading…</div>`;
-  const [{data:p,error:pe}, {data:skus}, {data:assets}] = await Promise.all([
+  const [{data:p,error:pe}, {data:skus}, {data:assets}, {data:mss}] = await Promise.all([
     db.from("projects").select("*").eq("id",id).single(),
     db.from("project_skus").select("*").eq("project_id",id).order("created_at"),
-    db.from("project_assets").select("*").eq("project_id",id).order("created_at",{ascending:false})
+    db.from("project_assets").select("*").eq("project_id",id).order("created_at",{ascending:false}),
+    db.from("project_milestones").select("*").eq("project_id",id)
   ]);
   if(pe || !p){ document.getElementById("detail").innerHTML = `<div class="muted-empty">Project not found.</div>`; return; }
+
+  const msMap={}; (mss||[]).forEach(m=> msMap[m.milestone_key]={due_date:m.due_date, assigned_to:m.assigned_to});
 
   const prodRows = (skus&&skus.length) ? skus.map(s=>{
     const sizeStr = s.sizes && Object.keys(s.sizes).length
       ? Object.entries(s.sizes).map(([k,v])=>`${esc(k.replace('|',' '))} ${v}`).join(",  ") : "";
-    return `<div class="feed-item">
-      <div class="top">
+    return `<div class="feed-item"><div class="top">
         <span class="name">${esc(s.product_name||s.sku||"Product")}</span>
         ${s.sku?`<span class="badge">${esc(s.sku)}</span>`:""}
         ${s.estimated_units!=null?`<span class="meta">${s.estimated_units} units</span>`:""}
-      </div>${sizeStr?`<div class="sub">${sizeStr}</div>`:""}
-    </div>`;
+      </div>${sizeStr?`<div class="sub">${sizeStr}</div>`:""}</div>`;
   }).join("") : `<div class="muted-empty">No products listed.</div>`;
 
   document.getElementById("detail").innerHTML = `
@@ -302,7 +347,6 @@ async function renderDetail(id){
         <div class="meta"><strong>Customer:</strong> ${esc(p.customer_name||"—")}</div>
         <div class="meta"><strong>Email:</strong> ${esc(p.customer_email||"—")}</div>
         <div class="meta"><strong>Phone:</strong> ${esc(p.customer_phone||"—")}</div>
-        <div class="meta"><strong>Due:</strong> ${fmtDate(p.due_date)}</div>
         <div class="meta"><strong>Est. units:</strong> ${p.estimated_units??"—"}</div>
         <div class="meta"><strong>Sales rep:</strong> ${esc(p.created_by||"—")}</div>
       </div>
@@ -311,8 +355,15 @@ async function renderDetail(id){
     </div>
 
     <div class="card">
-      <h3 style="margin:0 0 8px;font-size:16px">Products to customize</h3>
-      ${prodRows}
+      <div class="row between"><h3 style="margin:0;font-size:16px">Timeline</h3>
+        <button class="btn small" onclick="saveMilestones('${p.id}')">Save timeline</button></div>
+      <p class="meta" style="margin:4px 0 10px">All optional. Anything with both a date and a person shows on the calendar.</p>
+      <div id="msEdit">${milestoneRowsHtml(msMap)}</div>
+      <span id="msMsg" class="meta"></span>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 8px;font-size:16px">Products to customize</h3>${prodRows}
     </div>
 
     <div class="card">
@@ -322,11 +373,20 @@ async function renderDetail(id){
         <button class="btn secondary small" onclick="showAdd('file')">Upload files</button>
         <button class="btn ghost small" onclick="showAdd('link')">Add a link</button>
       </div>
-      <div id="addArea"></div>
-      <div id="feed">${renderFeed(assets)}</div>
+      <div id="addArea"></div><div id="feed">${renderFeed(assets)}</div>
     </div>`;
   showAdd("file");
   window.__pid = id;
+}
+
+async function saveMilestones(pid){
+  const rows = collectMilestones(document.getElementById("msEdit"), pid);
+  document.getElementById("msMsg").textContent = "Saving…";
+  const del = await db.from("project_milestones").delete().eq("project_id", pid);
+  if(del.error){ document.getElementById("msMsg").textContent = "Error: "+del.error.message; return; }
+  if(rows.length){ const ins = await db.from("project_milestones").insert(rows);
+    if(ins.error){ document.getElementById("msMsg").textContent = "Error: "+ins.error.message; return; } }
+  document.getElementById("msMsg").textContent = "Saved.";
 }
 
 function renderFeed(assets){
@@ -334,26 +394,21 @@ function renderFeed(assets){
   return assets.map(a=>{
     const url = a.asset_type==="file" ? db.storage.from(BUCKET).getPublicUrl(a.file_path).data.publicUrl : a.external_url;
     const name = a.asset_type==="file" ? (a.file_name||"file") : a.external_url;
-    return `<div class="feed-item">
-      <div class="top">
+    return `<div class="feed-item"><div class="top">
         <span class="badge">${esc(a.category||"Other")}</span>
         ${a.is_finalized?`<span class="badge final">Finalized</span>`:""}
-        <span class="name">${esc(a.label||name)}</span>
-      </div>
+        <span class="name">${esc(a.label||name)}</span></div>
       <div class="sub">
         <a href="${esc(url)}" target="_blank" rel="noopener">${a.asset_type==="file"?"Open file":"Open link"}</a>
         · ${esc(a.added_by||"someone")} · ${fmtStamp(a.created_at)}
         · <button class="link-x" style="color:var(--accent)" onclick="toggleFinal('${a.id}', ${!a.is_finalized})">${a.is_finalized?"unmark final":"mark final"}</button>
-        · <button class="link-x" onclick="deleteAsset('${a.id}')">delete</button>
-      </div>
-    </div>`;
+        · <button class="link-x" onclick="deleteAsset('${a.id}')">delete</button></div></div>`;
   }).join("");
 }
 
 function showAdd(mode){
   const a = document.getElementById("addArea");
-  const common = `<div class="grid2">
-      <div><label>Label</label><input id="a_label" placeholder="e.g. Logo option 2"></div>
+  const common = `<div class="grid2"><div><label>Label</label><input id="a_label" placeholder="e.g. Logo option 2"></div>
       <div><label>Category</label><select id="a_cat">${CATEGORIES.map(c=>`<option>${c}</option>`).join("")}</select></div></div>`;
   if(mode==="link"){
     a.innerHTML = common + `<label>Link (Dropbox, Drive, etc.)</label><input id="a_url" placeholder="https://…">
@@ -369,18 +424,15 @@ function showAdd(mode){
     d.addEventListener("drop", e=>{e.preventDefault();d.classList.remove("over");addFiles(e.dataTransfer.files)});
   }
 }
-
 async function addLink(){
   const url = document.getElementById("a_url").value.trim();
   if(!url){ document.getElementById("a_msg").textContent="Paste a link first."; return; }
-  const { error } = await db.from("project_assets").insert({
-    project_id: window.__pid, asset_type:"link", external_url:url,
-    label: document.getElementById("a_label").value.trim() || null,
+  const { error } = await db.from("project_assets").insert({ project_id: window.__pid, asset_type:"link",
+    external_url:url, label: document.getElementById("a_label").value.trim() || null,
     category: document.getElementById("a_cat").value, added_by: me || null });
   if(error){ document.getElementById("a_msg").textContent="Error: "+error.message; return; }
   renderDetail(window.__pid);
 }
-
 async function addFiles(files){
   if(!files || !files.length) return;
   const msg = document.getElementById("a_msg");
@@ -396,7 +448,6 @@ async function addFiles(files){
   }
   renderDetail(window.__pid);
 }
-
 async function toggleFinal(id, val){ await db.from("project_assets").update({is_finalized:val}).eq("id",id); renderDetail(window.__pid); }
 async function deleteAsset(id){ if(!confirm("Delete this entry?")) return; await db.from("project_assets").delete().eq("id",id); renderDetail(window.__pid); }
 async function updateStatus(id, status){ await db.from("projects").update({status}).eq("id",id); }
@@ -406,44 +457,50 @@ async function renderCalendar(){
   const view = document.getElementById("view");
   const monthLabel = calRef.toLocaleDateString(undefined,{month:"long",year:"numeric"});
   view.innerHTML = `
-    <div class="cal-head">
-      <h2 style="margin:0;font-size:20px">Calendar</h2>
+    <div class="cal-head"><h2 style="margin:0;font-size:20px">Calendar</h2>
       <div class="row">
         <button class="btn ghost small" onclick="shiftMonth(-1)">←</button>
         <strong style="min-width:150px;text-align:center">${monthLabel}</strong>
         <button class="btn ghost small" onclick="shiftMonth(1)">→</button>
         <button class="btn ghost small" onclick="calRef=new Date();calRef.setDate(1);renderCalendar()">Today</button>
-      </div>
-    </div>
+      </div></div>
     <div id="cal" class="muted-empty">Loading…</div>`;
-  const { data, error } = await db.from("projects").select("id,project_name,due_date,status").order("due_date");
+
+  const [{data:mss,error}, {data:projects}] = await Promise.all([
+    db.from("project_milestones").select("project_id,due_date,assigned_to,milestone_key,projects(project_name)")
+      .not("due_date","is",null).not("assigned_to","is",null),
+    db.from("projects").select("id,project_name")
+  ]);
   const el = document.getElementById("cal");
   if(error){ el.innerHTML = `<div class="muted-empty">Couldn't load: ${esc(error.message)}</div>`; return; }
 
-  const byDate = {};
-  (data||[]).forEach(p=>{ if(p.due_date){ (byDate[p.due_date] ||= []).push(p); } });
+  const byDate={}; const scheduled=new Set();
+  (mss||[]).forEach(m=>{ (byDate[m.due_date] ||= []).push(m); scheduled.add(m.project_id); });
 
   const year=calRef.getFullYear(), month=calRef.getMonth();
-  const firstDow = new Date(year,month,1).getDay();
-  const daysIn = new Date(year,month+1,0).getDate();
-  const todayStr = new Date().toLocaleDateString("en-CA");
-  const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="cal-dow">${d}</div>`).join("");
+  const firstDow=new Date(year,month,1).getDay(), daysIn=new Date(year,month+1,0).getDate();
+  const today=todayStr();
+  const dow=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="cal-dow">${d}</div>`).join("");
 
-  let cells = "";
+  let cells="";
   for(let i=0;i<firstDow;i++) cells += `<div class="cal-cell empty"></div>`;
   for(let d=1; d<=daysIn; d++){
     const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const chips = (byDate[ds]||[]).map(p=>`<div class="chip" title="${esc(p.project_name)}" onclick="go('${p.id}')">${esc(p.project_name)}</div>`).join("");
-    cells += `<div class="cal-cell ${ds===todayStr?'today':''}"><div class="cal-daynum">${d}</div>${chips}</div>`;
+    const chips = (byDate[ds]||[]).map(m=>{
+      const lbl=(MS_BY_KEY[m.milestone_key]||{}).short||m.milestone_key;
+      const pn=(m.projects&&m.projects.project_name)||"Project";
+      return `<div class="chip" title="${esc(pn+' — '+(MS_BY_KEY[m.milestone_key]||{}).label+' — '+(m.assigned_to||''))}" onclick="go('${m.project_id}')">${esc(lbl)}: ${esc(pn)}</div>`;
+    }).join("");
+    cells += `<div class="cal-cell ${ds===today?'today':''}"><div class="cal-daynum">${d}</div>${chips}</div>`;
   }
 
-  const noDate = (data||[]).filter(p=>!p.due_date);
-  const noDateHtml = noDate.length
-    ? `<div class="card" style="margin-top:14px"><div class="meta" style="margin-bottom:6px">No due date set</div>
-        <div class="row">${noDate.map(p=>`<span class="chip" onclick="go('${p.id}')">${esc(p.project_name)}</span>`).join("")}</div></div>`
+  const unscheduled=(projects||[]).filter(p=>!scheduled.has(p.id));
+  const footer = unscheduled.length
+    ? `<div class="card" style="margin-top:14px"><div class="meta" style="margin-bottom:6px">Not yet scheduled (no milestone with a date and a person)</div>
+        <div class="row">${unscheduled.map(p=>`<span class="chip" onclick="go('${p.id}')">${esc(p.project_name)}</span>`).join("")}</div></div>`
     : "";
 
-  el.outerHTML = `<div class="cal-grid">${dow}${cells}</div>${noDateHtml}`;
+  el.outerHTML = `<div class="cal-grid">${dow}${cells}</div>${footer}`;
 }
 function shiftMonth(n){ calRef.setMonth(calRef.getMonth()+n); renderCalendar(); }
 </script>
