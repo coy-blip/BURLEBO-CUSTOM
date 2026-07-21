@@ -83,6 +83,12 @@
   .ms-row input{margin:0}
   .ms-done{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);margin:0;white-space:nowrap}
   .ms-done input{width:auto}
+  .approve-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--danger-soft);color:var(--danger);cursor:pointer;font:inherit;
+    font-size:14px;font-weight:600;text-align:left}
+  .approve-toggle .dot{width:12px;height:12px;border-radius:50%;background:var(--danger);flex:none}
+  .approve-toggle.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+  .approve-toggle.on .dot{background:var(--accent)}
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:4px;text-transform:uppercase;letter-spacing:.4px}
@@ -422,6 +428,18 @@ function renderNew(){
       </div>
       <label>Notes</label><textarea id="f_notes"></textarea>
 
+      <h3 style="margin:18px 0 4px;font-size:16px">Trey &amp; Lexi Approval</h3>
+      <p class="meta" style="margin:0 0 8px">Required. Confirm Trey &amp; Lexi have approved this project before creating it.</p>
+      <div class="grid2">
+        <div>
+          <label>Approved by Trey &amp; Lexi *</label>
+          <button type="button" id="f_approved" class="approve-toggle" data-on="0" onclick="toggleApproval()">
+            <span class="dot"></span><span class="txt">No — not yet approved</span>
+          </button>
+        </div>
+        <div><label>Approval date</label><input id="f_approval_date" type="date"></div>
+      </div>
+
       <h3 style="margin:18px 0 4px;font-size:16px">Pricing details</h3>
       <div id="priceNew" class="grid2">${pricingFieldsHtml()}</div>
       <label>Other pricing notes</label><textarea id="f_pricing" placeholder="Anything that doesn't fit a box above…"></textarea>
@@ -443,9 +461,23 @@ function renderNew(){
   document.getElementById("f_rep").value = me;
 }
 
+function toggleApproval(){
+  const b = document.getElementById("f_approved");
+  const on = b.dataset.on === "1" ? "0" : "1";
+  b.dataset.on = on;
+  b.classList.toggle("on", on === "1");
+  b.querySelector(".txt").textContent = on === "1" ? "Yes — approved" : "No — not yet approved";
+  const d = document.getElementById("f_approval_date");
+  if(on === "1" && !d.value){ d.valueAsDate = new Date(); }
+}
+
 async function saveProject(){
   const name = document.getElementById("f_name").value.trim();
   if(!name){ document.getElementById("saveMsg").textContent = "Project name is required."; return; }
+  const approved = document.getElementById("f_approved").dataset.on === "1";
+  if(!approved){ document.getElementById("saveMsg").textContent = "Trey & Lexi approval is required — toggle it to Yes before creating."; return; }
+  const approvalDate = document.getElementById("f_approval_date").value || null;
+  if(!approvalDate){ document.getElementById("saveMsg").textContent = "Enter the Trey & Lexi approval date."; return; }
   document.getElementById("saveBtn").disabled = true;
   document.getElementById("saveMsg").textContent = "Saving…";
 
@@ -455,6 +487,8 @@ async function saveProject(){
     customer_email: document.getElementById("f_email").value.trim() || null,
     customer_phone: document.getElementById("f_phone").value.trim() || null,
     created_by: document.getElementById("f_rep").value.trim() || me || null,
+    trey_lexi_approved: true,
+    trey_lexi_approval_date: approvalDate,
     pricing: collectPricing(document.getElementById("priceNew")),
     pricing_notes: document.getElementById("f_pricing").value.trim() || null,
     notes: document.getElementById("f_notes").value.trim() || null
@@ -523,6 +557,7 @@ async function renderDetail(id){
         <div class="meta"><strong>Phone:</strong> ${esc(p.customer_phone||"—")}</div>
         <div class="meta"><strong>Total units:</strong> ${totalUnits||"—"}</div>
         <div class="meta"><strong>Sales rep:</strong> ${esc(p.created_by||"—")}</div>
+        <div class="meta"><strong>Trey &amp; Lexi approval:</strong> ${p.trey_lexi_approved ? `Approved${p.trey_lexi_approval_date?` (${esc(p.trey_lexi_approval_date)})`:""}` : "Not approved"}</div>
       </div>
       ${p.notes?`<div class="meta" style="margin-top:8px"><strong>Notes:</strong> ${esc(p.notes)}</div>`:""}
     </div>
