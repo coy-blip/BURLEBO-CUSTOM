@@ -106,6 +106,12 @@
   .modal{background:var(--card);border-radius:12px;max-width:540px;width:100%;padding:20px}
   .day-item{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px}
   .day-item .di-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .proof-list{margin-top:8px}
+  .proof-item{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;
+    padding:8px 10px;margin-bottom:6px;background:#fff;font-size:13px}
+  .proof-item .pf-name{flex:1;word-break:break-word}
+  .proof-item .pf-size{color:var(--muted);font-size:12px;white-space:nowrap}
+  .drop.missing{border-color:var(--danger);background:var(--danger-soft);color:var(--danger)}
   @media(max-width:600px){.grid2{grid-template-columns:1fr}.cal-cell{min-height:64px}.ms-row{grid-template-columns:1fr}}
 </style>
 </head>
@@ -148,6 +154,7 @@
     {key:"tax",               label:"Tax",                       type:"money"},
     {key:"total_order_value", label:"Total order value",         type:"money"},
     {key:"deposit",           label:"Deposit",                   type:"money"},
+    {key:"deposit_due_date",  label:"Deposit due date",          type:"date"},
     {key:"balance_due",       label:"Balance due",               type:"money"},
     {key:"payment_terms",     label:"Payment terms",             type:"text"}
   ];
@@ -375,6 +382,7 @@ function pricingFieldsHtml(existing){
   return PRICING_FIELDS.map(f=>{
     const v = (existing[f.key]!=null) ? existing[f.key] : "";
     if(f.type==="money") return `<div><label>${esc(f.label)}</label><input class="pr" data-key="${f.key}" data-type="money" type="number" step="0.01" min="0" value="${esc(v)}"></div>`;
+    if(f.type==="date")  return `<div><label>${esc(f.label)}</label><input class="pr" data-key="${f.key}" data-type="date" type="date" value="${esc(v)}"></div>`;
     return `<div><label>${esc(f.label)}</label><input class="pr" data-key="${f.key}" data-type="text" value="${esc(v)}"></div>`;
   }).join("");
 }
@@ -411,6 +419,38 @@ function recalcTotal(el){
   if(sum>0) prod.querySelector(".p-total").value = sum;
 }
 
+// ---------- PDF proof staging (new project) ----------
+let stagedProofs = [];
+function isPdf(f){ return f.type==="application/pdf" || /\.pdf$/i.test(f.name); }
+function fmtBytes(b){ return b<1048576 ? Math.round(b/1024)+" KB" : (b/1048576).toFixed(1)+" MB"; }
+function newId(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8); return v.toString(16);
+  });
+}
+function addProofs(files){
+  const rejected=[];
+  [...files].forEach(f=>{
+    if(!isPdf(f)){ rejected.push(f.name); return; }
+    if(stagedProofs.some(s=> s.name===f.name && s.size===f.size)) return;
+    stagedProofs.push(f);
+  });
+  const msg=document.getElementById("proofMsg");
+  if(msg) msg.textContent = rejected.length ? "Skipped — PDFs only: "+rejected.join(", ") : "";
+  renderProofList();
+}
+function removeProof(i){ stagedProofs.splice(i,1); renderProofList(); }
+function renderProofList(){
+  const el=document.getElementById("proofList"); if(!el) return;
+  const drop=document.getElementById("proofDrop"); if(drop) drop.classList.remove("missing");
+  el.innerHTML = stagedProofs.length
+    ? stagedProofs.map((f,i)=>`<div class="proof-item"><span class="badge">PDF</span>
+        <span class="pf-name">${esc(f.name)}</span><span class="pf-size">${fmtBytes(f.size)}</span>
+        <button class="link-x" onclick="removeProof(${i})">remove</button></div>`).join("")
+    : `<div class="meta">No proofs attached yet.</div>`;
+}
+
 // ---------- NEW ----------
 function renderNew(){
   const view = document.getElementById("view");
@@ -440,6 +480,13 @@ function renderNew(){
         <div><label>Approval date</label><input id="f_approval_date" type="date"></div>
       </div>
 
+      <h3 style="margin:18px 0 4px;font-size:16px">PDF Proofs *</h3>
+      <p class="meta" style="margin:0 0 8px">Required. Attach at least one PDF proof before this project can be created. PDFs only here — other files and links can be added after creation.</p>
+      <div class="drop" id="proofDrop" onclick="document.getElementById('proofInput').click()">Drag PDF proofs here, or click to choose. You can add several.</div>
+      <input id="proofInput" type="file" accept="application/pdf,.pdf" multiple class="hidden" onchange="addProofs(this.files)">
+      <div id="proofList" class="proof-list"></div>
+      <span id="proofMsg" class="meta"></span>
+
       <h3 style="margin:18px 0 4px;font-size:16px">Pricing details</h3>
       <div id="priceNew" class="grid2">${pricingFieldsHtml()}</div>
       <label>Other pricing notes</label><textarea id="f_pricing" placeholder="Anything that doesn't fit a box above…"></textarea>
@@ -459,6 +506,12 @@ function renderNew(){
       </div>
     </div>`;
   document.getElementById("f_rep").value = me;
+  stagedProofs = [];
+  renderProofList();
+  const pd = document.getElementById("proofDrop");
+  pd.addEventListener("dragover", e=>{e.preventDefault();pd.classList.add("over")});
+  pd.addEventListener("dragleave", ()=>pd.classList.remove("over"));
+  pd.addEventListener("drop", e=>{e.preventDefault();pd.classList.remove("over");addProofs(e.dataTransfer.files)});
 }
 
 function toggleApproval(){
@@ -472,21 +525,48 @@ function toggleApproval(){
 }
 
 async function saveProject(){
+  const msg = document.getElementById("saveMsg");
   const name = document.getElementById("f_name").value.trim();
-  if(!name){ document.getElementById("saveMsg").textContent = "Project name is required."; return; }
+  if(!name){ msg.textContent = "Project name is required."; return; }
   const approved = document.getElementById("f_approved").dataset.on === "1";
-  if(!approved){ document.getElementById("saveMsg").textContent = "Trey & Lexi approval is required — toggle it to Yes before creating."; return; }
+  if(!approved){ msg.textContent = "Trey & Lexi approval is required — toggle it to Yes before creating."; return; }
   const approvalDate = document.getElementById("f_approval_date").value || null;
-  if(!approvalDate){ document.getElementById("saveMsg").textContent = "Enter the Trey & Lexi approval date."; return; }
-  document.getElementById("saveBtn").disabled = true;
-  document.getElementById("saveMsg").textContent = "Saving…";
+  if(!approvalDate){ msg.textContent = "Enter the Trey & Lexi approval date."; return; }
+  if(!stagedProofs.length){
+    msg.textContent = "At least one PDF proof is required before this project can be created.";
+    const d = document.getElementById("proofDrop");
+    if(d){ d.classList.add("missing"); d.scrollIntoView({behavior:"smooth", block:"center"}); }
+    return;
+  }
 
+  const btn = document.getElementById("saveBtn");
+  btn.disabled = true;
+  const pid = newId();
+  const by = document.getElementById("f_rep").value.trim() || me || null;
+
+  // Upload proofs FIRST — if any fail, no project is created.
+  const uploaded = [];
+  for(let i=0; i<stagedProofs.length; i++){
+    const f = stagedProofs[i];
+    msg.textContent = `Uploading proof ${i+1} of ${stagedProofs.length}…`;
+    const path = pid + "/" + Date.now() + "-" + i + "-" + f.name.replace(/[^\w.\-]/g,"_");
+    const { error:upErr } = await db.storage.from(BUCKET).upload(path, f);
+    if(upErr){
+      if(uploaded.length) await db.storage.from(BUCKET).remove(uploaded.map(u=>u.path));
+      msg.textContent = "Proof upload failed: " + upErr.message + " — nothing was created.";
+      btn.disabled = false; return;
+    }
+    uploaded.push({path, name:f.name});
+  }
+
+  msg.textContent = "Saving…";
   const payload = {
+    id: pid,
     project_name: name, status: document.getElementById("f_status").value,
     customer_name: document.getElementById("f_customer").value.trim() || null,
     customer_email: document.getElementById("f_email").value.trim() || null,
     customer_phone: document.getElementById("f_phone").value.trim() || null,
-    created_by: document.getElementById("f_rep").value.trim() || me || null,
+    created_by: by,
     trey_lexi_approved: true,
     trey_lexi_approval_date: approvalDate,
     pricing: collectPricing(document.getElementById("priceNew")),
@@ -494,21 +574,31 @@ async function saveProject(){
     notes: document.getElementById("f_notes").value.trim() || null
   };
   const { data, error } = await db.from("projects").insert(payload).select().single();
-  if(error){ document.getElementById("saveMsg").textContent = "Error: "+error.message; document.getElementById("saveBtn").disabled=false; return; }
+  if(error){
+    await db.storage.from(BUCKET).remove(uploaded.map(u=>u.path));
+    msg.textContent = "Error: " + error.message;
+    btn.disabled = false; return;
+  }
 
-  const milestones = canEditDates() ? collectMilestones(document.getElementById("msNew"), data.id) : [];
+  await db.from("project_assets").insert(uploaded.map(u=>({
+    project_id: pid, asset_type: "file", file_path: u.path, file_name: u.name,
+    label: "Proof — " + u.name, category: "Proof", added_by: by, is_finalized: false
+  })));
+
+  const milestones = canEditDates() ? collectMilestones(document.getElementById("msNew"), pid) : [];
   if(milestones.length) await db.from("project_milestones").insert(milestones);
 
   const prods = [...document.querySelectorAll("#prods .prod")].map(p=>{
     const sizes={};
     p.querySelectorAll(".p-size").forEach(s=>{ const v=parseInt(s.value)||0; if(v>0) sizes[s.dataset.key]=v; });
     const total = parseInt(p.querySelector(".p-total").value) || Object.values(sizes).reduce((a,b)=>a+b,0) || null;
-    return { project_id:data.id, product_name:p.querySelector(".p-name").value.trim()||null,
+    return { project_id:pid, product_name:p.querySelector(".p-name").value.trim()||null,
       sku:p.querySelector(".p-sku").value.trim()||null, estimated_units:total, sizes };
   }).filter(r=> r.product_name||r.sku||r.estimated_units||Object.keys(r.sizes).length);
   if(prods.length) await db.from("project_skus").insert(prods);
 
-  go(data.id);
+  stagedProofs = [];
+  go(pid);
 }
 
 // ---------- DETAIL ----------
@@ -540,7 +630,11 @@ async function renderDetail(id){
   const prFilled = PRICING_FIELDS.filter(f=> pr[f.key]!=null && pr[f.key]!=="");
   const pricingCard = (prFilled.length || p.pricing_notes) ? `
     <div class="card"><h3 style="margin:0 0 8px;font-size:16px">Pricing</h3>
-      <div class="grid2">${prFilled.map(f=>`<div class="meta"><strong>${esc(f.label)}:</strong> ${f.type==="money"?money(pr[f.key]):esc(pr[f.key])}</div>`).join("")}</div>
+      <div class="grid2">${prFilled.map(f=>{
+        const v = pr[f.key];
+        const out = f.type==="money" ? money(v) : f.type==="date" ? fmtDate(v) : esc(v);
+        return `<div class="meta"><strong>${esc(f.label)}:</strong> ${out}</div>`;
+      }).join("")}</div>
       ${p.pricing_notes?`<div class="meta" style="margin-top:6px"><strong>Notes:</strong> ${esc(p.pricing_notes)}</div>`:""}
     </div>` : "";
 
