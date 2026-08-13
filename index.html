@@ -89,18 +89,43 @@
   .approve-toggle .dot{width:12px;height:12px;border-radius:50%;background:var(--danger);flex:none}
   .approve-toggle.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
   .approve-toggle.on .dot{background:var(--accent)}
-  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-  .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:4px;text-transform:uppercase;letter-spacing:.4px}
-  .cal-cell{min-height:90px;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff}
-  .cal-cell.empty{background:transparent;border:none}
-  .cal-cell.today{border-color:var(--accent);background:var(--accent-soft)}
-  .cal-daynum{color:var(--muted);font-size:11px}
-  .chip{background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:2px 6px;margin-top:3px;
-    cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:11px}
-  .chip:hover{background:#dfe4d4}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin-bottom:14px;flex-wrap:wrap}
+  .cal-nav{display:flex;align-items:center;gap:6px}
+  .cal-month{min-width:172px;text-align:center;font-size:17px;font-weight:600}
+  /* minmax(0,1fr) is load-bearing: plain 1fr lets a long chip blow out the track */
+  .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+  .cal-dow{font-size:10px;color:var(--muted);text-align:center;padding:2px 0 6px;
+    text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+  .cal-cell{min-width:0;min-height:116px;border:1px solid var(--line);border-radius:9px;
+    padding:6px 6px 7px;background:#fff;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+  .cal-cell.out{background:#f3f2ed;border-color:#eceae1}
+  .cal-cell.out .cal-daynum{opacity:.4}
   .cal-cell.has-items{cursor:pointer}
-  .cal-cell.has-items:hover{border-color:var(--accent);background:#fafbf7}
+  .cal-cell.has-items:hover{border-color:var(--accent)}
+  .cal-daynum{font-size:11px;color:var(--muted);font-weight:600;width:21px;height:21px;flex:none;
+    display:flex;align-items:center;justify-content:center;margin-bottom:1px}
+  .cal-daynum.is-today{background:var(--accent);color:#fff;border-radius:50%}
+  .chip{display:block;min-width:0;border-radius:5px;cursor:pointer;overflow:hidden;
+    border-left:3px solid var(--ms-line,var(--accent));background:var(--ms-bg,var(--accent-soft));padding:3px 5px}
+  .chip .c-ms{display:block;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+    color:var(--ms-line,var(--accent));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip .c-pn{display:block;font-size:11px;line-height:1.25;color:var(--ink);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip:hover{filter:brightness(.96)}
+  .ms-a{--ms-line:#4a5d3a;--ms-bg:#eaefe2}
+  .ms-b{--ms-line:#3f5566;--ms-bg:#e6edf2}
+  .ms-c{--ms-line:#8a6420;--ms-bg:#f6eeda}
+  .ms-d{--ms-line:#a4472f;--ms-bg:#f7e5df}
+  .cal-more{font-size:10px;color:var(--muted);font-weight:600;padding-left:4px}
+  .cal-dots{display:none;gap:3px;flex-wrap:wrap;padding-left:1px}
+  .cal-dots i{width:6px;height:6px;border-radius:50%;display:block;background:var(--ms-line,var(--accent))}
+  .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:11px;color:var(--muted)}
+  .cal-legend span{display:flex;align-items:center;gap:5px}
+  .cal-legend i{width:9px;height:9px;border-radius:2px;display:block}
+  .pill{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:20px;
+    padding:3px 11px;font-size:12px;font-weight:600;cursor:pointer}
+  .pill:hover{background:#dfe4d4}
   .modal-bg{position:fixed;inset:0;background:rgba(20,22,18,.45);display:flex;align-items:flex-start;
     justify-content:center;padding:48px 16px;z-index:50;overflow:auto}
   .modal{background:var(--card);border-radius:12px;max-width:540px;width:100%;padding:20px}
@@ -112,7 +137,16 @@
   .proof-item .pf-name{flex:1;word-break:break-word}
   .proof-item .pf-size{color:var(--muted);font-size:12px;white-space:nowrap}
   .drop.missing{border-color:var(--danger);background:var(--danger-soft);color:var(--danger)}
-  @media(max-width:600px){.grid2{grid-template-columns:1fr}.cal-cell{min-height:64px}.ms-row{grid-template-columns:1fr}}
+  @media(max-width:600px){
+    .grid2{grid-template-columns:1fr}
+    .ms-row{grid-template-columns:1fr}
+    .cal-grid{gap:3px}
+    .cal-cell{min-height:58px;padding:3px;border-radius:6px}
+    .cal-cell .chip,.cal-more{display:none}
+    .cal-dots{display:flex}
+    .cal-daynum{width:18px;height:18px;font-size:10px}
+    .cal-month{min-width:118px;font-size:15px}
+  }
 </style>
 </head>
 <body>
@@ -155,6 +189,21 @@
     {key:"launch",            label:"Launch",                               short:"Launch"}
   ];
   const MS_BY_KEY = Object.fromEntries(MILESTONES.map(m=>[m.key,m]));
+  // Colour families so a month can be scanned by phase at a glance.
+  const MS_GROUP = {
+    designs_finalized:"ms-a", graphics_artwork:"ms-a",
+    tech_pack:"ms-b", proto_1:"ms-b", proto_2:"ms-b",
+    po_placement:"ms-c", ex_factory:"ms-c", in_hands:"ms-c",
+    launch:"ms-d"
+  };
+  const MS_LEGEND = [
+    {cls:"ms-a", color:"#4a5d3a", label:"Design"},
+    {cls:"ms-b", color:"#3f5566", label:"Development"},
+    {cls:"ms-c", color:"#8a6420", label:"Production"},
+    {cls:"ms-d", color:"#a4472f", label:"Launch"}
+  ];
+  const MS_ORDER = Object.fromEntries(MILESTONES.map((m,i)=>[m.key,i]));
+  const CAL_MAX_CHIPS = 3;
   const PRICING_FIELDS = [
     {key:"unit_price",        label:"Unit price",                type:"money"},
     {key:"blank_cost",        label:"Blank garment cost",        type:"money"},
@@ -267,6 +316,27 @@ const fmtDate = d => d ? new Date(d+"T00:00:00").toLocaleDateString(undefined,{m
 const fmtStamp = t => new Date(t).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
 const money = n => "$"+Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 
+// Legacy rows store short names ("Mika") alongside full ones ("Mika Yasukawa"),
+// which splits one person into two chips. Fold them together for display.
+const FIRST_NAMES = (()=>{
+  const counts = {};
+  PEOPLE.forEach(n=>{ const f=n.split(" ")[0].toLowerCase(); counts[f]=(counts[f]||0)+1; });
+  const map = {};
+  PEOPLE.forEach(n=>{ const f=n.split(" ")[0].toLowerCase(); if(counts[f]===1) map[f]=n; });
+  return map;
+})();
+function canonName(raw){
+  const n = (raw||"").trim();
+  if(!n || PEOPLE.includes(n)) return n;
+  return FIRST_NAMES[n.toLowerCase()] || n;
+}
+function aliasesFor(name){
+  const out = new Set([name]);
+  const first = (name||"").split(" ")[0];
+  if(first && FIRST_NAMES[first.toLowerCase()] === name) out.add(first);
+  return [...out];
+}
+
 // ---------- LIST ----------
 async function renderList(){
   const view = document.getElementById("view");
@@ -329,7 +399,7 @@ async function loadPeople(){
   if(!el || !db) return;
   const { data } = await db.from("project_milestones").select("project_id,assigned_to").not("assigned_to","is",null).not("completed","is",true);
   const map={};
-  (data||[]).forEach(m=>{ const n=(m.assigned_to||"").trim(); if(!n) return; (map[n] ||= new Set()).add(m.project_id); });
+  (data||[]).forEach(m=>{ const n=canonName(m.assigned_to); if(!n) return; (map[n] ||= new Set()).add(m.project_id); });
   const names = Object.keys(map).sort((a,b)=> a.localeCompare(b));
   el.innerHTML = names.map(n=>`<button class="pchip" onclick="goPerson('${encodeURIComponent(n)}')">${esc(n)}<span class="pcount">${map[n].size}</span></button>`).join("");
 }
@@ -341,7 +411,7 @@ async function renderPerson(name){
     <div id="plist" class="muted-empty">Loading…</div>`;
   const { data, error } = await db.from("project_milestones")
     .select("project_id,due_date,milestone_key,assigned_to,projects(project_name,status)")
-    .eq("assigned_to", name).not("completed","is",true);
+    .in("assigned_to", aliasesFor(name)).not("completed","is",true);
   const el=document.getElementById("plist");
   if(error){ el.innerHTML=`<div class="muted-empty">Couldn't load: ${esc(error.message)}</div>`; return; }
   if(!data || !data.length){ el.innerHTML=`<div class="muted-empty">Nothing assigned to ${esc(name)} right now.</div>`; return; }
@@ -819,20 +889,24 @@ async function updateStatus(id, status){
 }
 
 // ---------- CALENDAR ----------
+const ymd = (y,m,d) => `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+
 async function renderCalendar(){
   const view = document.getElementById("view");
   const monthLabel = calRef.toLocaleDateString(undefined,{month:"long",year:"numeric"});
   view.innerHTML = `
-    <div class="cal-head"><h2 style="margin:0;font-size:20px">Calendar</h2>
-      <div class="row">
-        <button class="btn ghost small" onclick="shiftMonth(-1)">←</button>
-        <strong style="min-width:150px;text-align:center">${monthLabel}</strong>
-        <button class="btn ghost small" onclick="shiftMonth(1)">→</button>
+    <div class="cal-head">
+      <h2 style="margin:0;font-size:20px">Calendar</h2>
+      <div class="cal-nav">
+        <button class="btn ghost small" onclick="shiftMonth(-1)" aria-label="Previous month">\u2190</button>
+        <div class="cal-month">${esc(monthLabel)}</div>
+        <button class="btn ghost small" onclick="shiftMonth(1)" aria-label="Next month">\u2192</button>
         <button class="btn ghost small" onclick="calRef=new Date();calRef.setDate(1);renderCalendar()">Today</button>
-      </div></div>
-    <div id="cal" class="muted-empty">Loading…</div>`;
+      </div>
+    </div>
+    <div id="cal" class="muted-empty">Loading\u2026</div>`;
 
-  const [{data:mss,error}, {data:projects}] = await Promise.all([
+  const [{data:mss,error},{data:projects}] = await Promise.all([
     db.from("project_milestones").select("project_id,due_date,assigned_to,milestone_key,projects(project_name,status)")
       .not("due_date","is",null).not("assigned_to","is",null).not("completed","is",true),
     db.from("projects").select("id,project_name")
@@ -840,37 +914,69 @@ async function renderCalendar(){
   const el = document.getElementById("cal");
   if(error){ el.innerHTML = `<div class="muted-empty">Couldn't load: ${esc(error.message)}</div>`; return; }
 
-  const byDate={}; const scheduled=new Set();
+  const byDate = {}; const scheduled = new Set();
   (mss||[]).forEach(m=>{ (byDate[m.due_date] ||= []).push(m); scheduled.add(m.project_id); });
+  // Consistent chip order inside a day: earliest milestone in the workflow first.
+  Object.values(byDate).forEach(list=>
+    list.sort((a,b)=> (MS_ORDER[a.milestone_key] ?? 99) - (MS_ORDER[b.milestone_key] ?? 99)));
   window.__calByDate = byDate;
 
-  const year=calRef.getFullYear(), month=calRef.getMonth();
-  const firstDow=new Date(year,month,1).getDay(), daysIn=new Date(year,month+1,0).getDate();
-  const today=todayStr();
-  const dow=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="cal-dow">${d}</div>`).join("");
+  const year = calRef.getFullYear(), month = calRef.getMonth();
+  const firstDow = new Date(year,month,1).getDay();
+  const daysIn   = new Date(year,month+1,0).getDate();
+  const totalCells = Math.ceil((firstDow + daysIn) / 7) * 7;   // always whole weeks
+  const today = todayStr();
 
-  let cells="";
-  for(let i=0;i<firstDow;i++) cells += `<div class="cal-cell empty"></div>`;
-  for(let d=1; d<=daysIn; d++){
-    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const items = byDate[ds]||[];
-    const chips = items.map(m=>{
-      const lbl=(MS_BY_KEY[m.milestone_key]||{}).short||m.milestone_key;
-      const full=(MS_BY_KEY[m.milestone_key]||{}).label||m.milestone_key;
-      const pn=(m.projects&&m.projects.project_name)||"Project";
-      return `<div class="chip" title="${esc(full+' — '+pn+' — '+(m.assigned_to||''))}">${esc(lbl)}: ${esc(pn)}</div>`;
+  const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+    .map(d=>`<div class="cal-dow">${d}</div>`).join("");
+
+  let cells = "";
+  for(let i=0; i<totalCells; i++){
+    const dt = new Date(year, month, 1 + (i - firstDow));
+    const inMonth = dt.getMonth() === month && dt.getFullYear() === year;
+    const ds = ymd(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    const items = byDate[ds] || [];
+
+    const chips = items.slice(0, CAL_MAX_CHIPS).map(m=>{
+      const def = MS_BY_KEY[m.milestone_key] || {};
+      const cls = MS_GROUP[m.milestone_key] || "ms-a";
+      const pn  = (m.projects && m.projects.project_name) || "Project";
+      const who = canonName(m.assigned_to);
+      const tip = `${def.label || m.milestone_key} \u2014 ${pn}${who ? " \u2014 " + who : ""}`;
+      return `<div class="chip ${cls}" title="${esc(tip)}">`
+           + `<span class="c-ms">${esc(def.short || m.milestone_key)}</span>`
+           + `<span class="c-pn">${esc(pn)}</span></div>`;
     }).join("");
-    const attrs = items.length ? `class="cal-cell has-items ${ds===today?'today':''}" onclick="openDay('${ds}')"` : `class="cal-cell ${ds===today?'today':''}"`;
-    cells += `<div ${attrs}><div class="cal-daynum">${d}</div>${chips}</div>`;
+
+    const hidden = items.length - CAL_MAX_CHIPS;
+    const more = hidden > 0 ? `<div class="cal-more">+${hidden} more</div>` : "";
+    const dots = items.length
+      ? `<div class="cal-dots">${items.slice(0,8)
+          .map(m=>`<i class="${MS_GROUP[m.milestone_key] || "ms-a"}"></i>`).join("")}</div>`
+      : "";
+
+    const cls = ["cal-cell"];
+    if(!inMonth) cls.push("out");
+    if(items.length) cls.push("has-items");
+    const click = items.length ? ` onclick="openDay('${ds}')"` : "";
+    const numCls = ds === today ? "cal-daynum is-today" : "cal-daynum";
+
+    cells += `<div class="${cls.join(" ")}"${click}>`
+           + `<div class="${numCls}">${dt.getDate()}</div>${chips}${more}${dots}</div>`;
   }
 
-  const unscheduled=(projects||[]).filter(p=>!scheduled.has(p.id));
+  const legend = `<div class="cal-legend">${MS_LEGEND
+    .map(l=>`<span><i style="background:${l.color}"></i>${l.label}</span>`).join("")}</div>`;
+
+  const unscheduled = (projects||[]).filter(p=>!scheduled.has(p.id));
   const footer = unscheduled.length
-    ? `<div class="card" style="margin-top:14px"><div class="meta" style="margin-bottom:6px">Not yet scheduled (no milestone with a date and a person)</div>
-        <div class="row">${unscheduled.map(p=>`<span class="chip" onclick="go('${p.id}')">${esc(p.project_name)}</span>`).join("")}</div></div>`
+    ? `<div class="card" style="margin-top:14px">
+        <div class="meta" style="margin-bottom:8px">Not yet scheduled (no milestone with a date and a person)</div>
+        <div class="row">${unscheduled
+          .map(p=>`<span class="pill" onclick="go('${p.id}')">${esc(p.project_name)}</span>`).join("")}</div></div>`
     : "";
 
-  el.outerHTML = `<div class="cal-grid">${dow}${cells}</div>${footer}`;
+  el.outerHTML = `<div class="cal-grid">${dow}${cells}</div>${legend}${footer}`;
 }
 function shiftMonth(n){ calRef.setMonth(calRef.getMonth()+n); renderCalendar(); }
 
@@ -884,7 +990,7 @@ function openDay(ds){
     return `<div class="day-item">
       <div class="di-top"><span class="badge">${esc(full)}</span>${st?`<span class="meta">${esc(st)}</span>`:""}</div>
       <div style="margin-top:4px"><strong>${esc(pn)}</strong></div>
-      <div class="meta">Assigned to ${esc(m.assigned_to||"—")}</div>
+      <div class="meta">Assigned to ${esc(canonName(m.assigned_to)||"—")}</div>
       <div class="row" style="margin-top:8px">
         <button class="btn small" onclick="openProjectFromModal('${m.project_id}')">Open project</button>
         ${canEditDates() ? `<button class="btn ghost small" onclick="markDone('${m.project_id}','${m.milestone_key}')">Mark done</button>` : ""}
