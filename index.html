@@ -126,6 +126,14 @@
   .pill{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:20px;
     padding:3px 11px;font-size:12px;font-weight:600;cursor:pointer}
   .pill:hover{background:#dfe4d4}
+  .pkg-check{display:flex;align-items:flex-end}
+  .pkg-toggle{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:14px;
+    padding:9px 11px;border:1px solid var(--line);border-radius:8px;width:100%;
+    background:#fff;transition:border-color .15s,background .15s;text-transform:none;
+    letter-spacing:normal;color:var(--ink);font-weight:500}
+  .pkg-toggle:hover{border-color:var(--accent);background:#fafbf7}
+  .pkg-toggle input{width:17px;height:17px;accent-color:var(--accent);flex:none;margin:0;cursor:pointer}
+  .pkg-toggle:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px rgba(74,93,58,.15)}
   .modal-bg{position:fixed;inset:0;background:rgba(20,22,18,.45);display:flex;align-items:flex-start;
     justify-content:center;padding:48px 16px;z-index:50;overflow:auto}
   .modal{background:var(--card);border-radius:12px;max-width:540px;width:100%;padding:20px}
@@ -205,19 +213,22 @@
   const MS_ORDER = Object.fromEntries(MILESTONES.map((m,i)=>[m.key,i]));
   const CAL_MAX_CHIPS = 3;
   const PRICING_FIELDS = [
-    {key:"unit_price",        label:"Unit price",                type:"money"},
-    {key:"blank_cost",        label:"Blank garment cost",        type:"money"},
-    {key:"decoration_cost",   label:"Decoration cost (per unit)", type:"money"},
-    {key:"setup_fee",         label:"Setup fee",                 type:"money"},
-    {key:"sample_cost",       label:"Sample / proto cost",       type:"money"},
-    {key:"shipping_cost",     label:"Shipping / freight",        type:"money"},
-    {key:"discount",          label:"Discount",                  type:"money"},
-    {key:"tax",               label:"Tax",                       type:"money"},
-    {key:"total_order_value", label:"Total order value",         type:"money"},
-    {key:"deposit",           label:"Deposit",                   type:"money"},
-    {key:"deposit_due_date",  label:"Deposit due date",          type:"date"},
-    {key:"balance_due",       label:"Balance due",               type:"money"},
-    {key:"payment_terms",     label:"Payment terms",             type:"text"}
+    {key:"unit_price",       label:"Unit price",       type:"money"},
+    {key:"deposit",          label:"Deposit",          type:"money"},
+    {key:"deposit_due_date", label:"Deposit due date", type:"date"}
+  ];
+
+  // Packaging requirements. The detail card only renders what was filled in,
+  // so the "details" text boxes stay out of the way on plain orders.
+  const PACKAGING_FIELDS = [
+    {key:"hang_tag",       label:"Custom hang tag required", type:"check"},
+    {key:"hang_tag_notes", label:"Hang tag details",         type:"text",
+     placeholder:"Which tag, who supplies it, where it attaches"},
+    {key:"poly_bag",       label:"Custom poly bag required", type:"check"},
+    {key:"poly_bag_notes", label:"Poly bag details",         type:"text",
+     placeholder:"Bag size, printing, individual or bulk"},
+    {key:"ship_to",        label:"Shipping destination",     type:"select",
+     options:["Direct to consumer","BURLEBO warehouse"]}
   ];
 </script>
 
@@ -483,6 +494,33 @@ function collectPricing(scope){
   return obj;
 }
 
+// ---------- packaging requirements ----------
+function packagingFieldsHtml(existing){
+  existing = existing || {};
+  return PACKAGING_FIELDS.map(f=>{
+    const v = (existing[f.key]!=null) ? existing[f.key] : "";
+    if(f.type==="check") return `<div class="pkg-check"><label class="pkg-toggle">
+      <input class="pk" data-key="${f.key}" data-type="check" type="checkbox" ${v?"checked":""}>
+      <span>${esc(f.label)}</span></label></div>`;
+    if(f.type==="select") return `<div><label>${esc(f.label)}</label>
+      <select class="pk" data-key="${f.key}" data-type="text">
+        <option value="">Not decided yet</option>
+        ${f.options.map(o=>`<option ${o===v?"selected":""}>${esc(o)}</option>`).join("")}
+      </select></div>`;
+    return `<div><label>${esc(f.label)}</label><input class="pk" data-key="${f.key}"
+      data-type="text" placeholder="${esc(f.placeholder||"")}" value="${esc(v)}"></div>`;
+  }).join("");
+}
+function collectPackaging(scope){
+  const obj={};
+  scope.querySelectorAll(".pk").forEach(i=>{
+    if(i.dataset.type==="check"){ if(i.checked) obj[i.dataset.key]=true; return; }
+    const val=i.value.trim(); if(val==="") return;
+    obj[i.dataset.key]=val;
+  });
+  return obj;
+}
+
 // ---------- product entry ----------
 function sizeGroupsHtml(){
   return Object.entries(SIZES).map(([cat,sizes])=>`
@@ -579,6 +617,11 @@ function renderNew(){
       <div id="priceNew" class="grid2">${pricingFieldsHtml()}</div>
       <label>Other pricing notes</label><textarea id="f_pricing" placeholder="Anything that doesn't fit a box above…"></textarea>
 
+      <h3 style="margin:18px 0 4px;font-size:16px">Packaging requirements</h3>
+      <p class="meta" style="margin:0 0 8px">Anything the customer needs done to the goods before they ship, and where they are going.</p>
+      <div id="pkgNew" class="grid2">${packagingFieldsHtml()}</div>
+      <label>Other packaging notes</label><textarea id="f_packaging" placeholder="Folding, labelling, cartonisation, anything else…"></textarea>
+
       <h3 style="margin:18px 0 4px;font-size:16px">Timeline / due dates</h3>
       <p class="meta" style="margin:0 0 8px">${canEditDates() ? "All optional. Anything with both a date and a person shows on the calendar." : `Due dates are set by ${ADMIN_NAMES}. Go ahead and create the project — they can add the timeline afterward.`}</p>
       <div id="msNew">${milestoneRowsHtml()}</div>
@@ -659,6 +702,8 @@ async function saveProject(){
     trey_lexi_approval_date: approvalDate,
     pricing: collectPricing(document.getElementById("priceNew")),
     pricing_notes: document.getElementById("f_pricing").value.trim() || null,
+    packaging: collectPackaging(document.getElementById("pkgNew")),
+    packaging_notes: document.getElementById("f_packaging").value.trim() || null,
     notes: document.getElementById("f_notes").value.trim() || null
   };
   const { data, error } = await db.from("projects").insert(payload).select().single();
@@ -726,6 +771,18 @@ async function renderDetail(id){
       ${p.pricing_notes?`<div class="meta" style="margin-top:6px"><strong>Notes:</strong> ${esc(p.pricing_notes)}</div>`:""}
     </div>` : "";
 
+  const pk = p.packaging || {};
+  const pkFilled = PACKAGING_FIELDS.filter(f=> pk[f.key]!=null && pk[f.key]!=="" && pk[f.key]!==false);
+  const packagingCard = (pkFilled.length || p.packaging_notes) ? `
+    <div class="card"><h3 style="margin:0 0 8px;font-size:16px">Packaging requirements</h3>
+      <div class="grid2">${pkFilled.map(f=>{
+        const v = pk[f.key];
+        const out = f.type==="check" ? "Yes" : esc(v);
+        return `<div class="meta"><strong>${esc(f.label)}:</strong> ${out}</div>`;
+      }).join("")}</div>
+      ${p.packaging_notes?`<div class="meta" style="margin-top:6px"><strong>Notes:</strong> ${esc(p.packaging_notes)}</div>`:""}
+    </div>` : "";
+
   document.getElementById("detail").innerHTML = `
     <div class="card">
       <div class="row between">
@@ -747,6 +804,8 @@ async function renderDetail(id){
     </div>
 
     ${pricingCard}
+
+    ${packagingCard}
 
     <div class="card">
       <div class="row between"><h3 style="margin:0;font-size:16px">Timeline</h3>
